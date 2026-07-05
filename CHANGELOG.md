@@ -1,5 +1,8 @@
 # Journal des versions
 
+## v2.8 — juillet 2026
+- Icône d'écran d'accueil : le logo s'affiche désormais quand l'application est ajoutée à l'accueil d'un iPhone (apple-touch-icon) ou d'un Android (manifest).
+
 ## v2.7 — juillet 2026
 - Correction de l'export PDF : contenu décalé vers la droite et tronqué, et pages blanches intercalées. La génération utilise désormais une mise en page de capture dédiée (alignement, marges et ombres neutralisés).
 

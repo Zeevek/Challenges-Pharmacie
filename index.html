@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-title" content="Challenges">
+    <meta name="theme-color" content="#047857">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20512%20512%22%20role%3D%22img%22%20aria-label%3D%22Challenges%20Pharmacie%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23059669%22%2F%3E%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23065f46%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3C%21--%20Fond%20--%3E%20%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%22112%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3C%21--%20Piste%20de%20la%20jauge%20--%3E%20%3Ccircle%20cx%3D%22256%22%20cy%3D%22256%22%20r%3D%22168%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%220.22%22%20stroke-width%3D%2234%22%2F%3E%20%3C%21--%20Arc%20de%20progression%20%28~78%20%25%29%2C%20du%20sommet%20vers%202%20h%20en%20passant%20par%20la%20gauche%20--%3E%20%3Cpath%20d%3D%22M%20256%2088%20A%20168%20168%200%201%200%20421%20225%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%2234%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%21--%20Croix%20de%20pharmacie%20--%3E%20%3Cg%20fill%3D%22%23ffffff%22%3E%20%3Crect%20x%3D%22212%22%20y%3D%22156%22%20width%3D%2288%22%20height%3D%22200%22%20rx%3D%2226%22%2F%3E%20%3Crect%20x%3D%22156%22%20y%3D%22212%22%20width%3D%22200%22%20height%3D%2288%22%20rx%3D%2226%22%2F%3E%20%3C%2Fg%3E%20%3C%21--%20Point%20d%27%C3%A9tape%20%C3%A0%20l%27extr%C3%A9mit%C3%A9%20de%20la%20jauge%20--%3E%20%3Ccircle%20cx%3D%22421%22%20cy%3D%22225%22%20r%3D%2227%22%20fill%3D%22%23ffffff%22%2F%3E%20%3Cpath%20d%3D%22M409%20225l9%209%2016%20-17%22%20fill%3D%22none%22%20stroke%3D%22%23047857%22%20stroke-width%3D%228%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%20%3C%2Fsvg%3E">
     <title>Générateur de Challenges – Pharma Pro</title>
     <!-- Bibliothèque PDF optionnelle : si elle ne charge pas (hors-ligne), l'app bascule sur l'impression du navigateur. -->
@@ -880,9 +884,11 @@ function renameLib(id, name) { const lib = loadLibrary(); const it = lib.find(x 
 function deleteLib(id) { saveLibrary(loadLibrary().filter(x => x.id !== id)); refreshLibrarySelects(); renderStorage(); openLibrary(); }
 
 /* ---------- Aide & journal des nouveautés ---------- */
-const APP_VERSION = '2.7';
+const APP_VERSION = '2.8';
 const SEEN_KEY = 'pharma_seen_version';
 const CHANGELOG = [
+    { v:'2.8', d:'juillet 2026', items:[
+        'Icône d\'écran d\'accueil : le logo s\'affiche désormais quand l\'application est ajoutée à l\'accueil d\'un iPhone (apple-touch-icon) ou d\'un Android (manifest).' ] },
     { v:'2.7', d:'juillet 2026', items:[
         'Correction de l\'export PDF : contenu décalé vers la droite et tronqué, et pages blanches intercalées. La génération utilise désormais une mise en page de capture dédiée (alignement, marges et ombres neutralisés).' ] },
     { v:'2.6', d:'juillet 2026', items:[
