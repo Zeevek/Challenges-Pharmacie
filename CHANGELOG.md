@@ -1,5 +1,8 @@
 # Journal des versions
 
+## v2.7 — juillet 2026
+- Correction de l'export PDF : contenu décalé vers la droite et tronqué, et pages blanches intercalées. La génération utilise désormais une mise en page de capture dédiée (alignement, marges et ombres neutralisés).
+
 ## v2.6 — juillet 2026
 - Optimisations : collecte des données une seule fois par rendu, sauvegarde ignorée quand rien n'a changé (moins d'écritures disque), et la saisie dans la page Répartition ne re-génère plus l'aperçu du rapport ni la date de dernière saisie des challenges.
 
