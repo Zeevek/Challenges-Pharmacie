@@ -1,8 +1,15 @@
 # Journal des versions
 
+## v2.6 — juillet 2026
+- Optimisations : collecte des données une seule fois par rendu, sauvegarde ignorée quand rien n'a changé (moins d'écritures disque), et la saisie dans la page Répartition ne re-génère plus l'aperçu du rapport ni la date de dernière saisie des challenges.
+
+## v2.5 — juillet 2026
+- Période globale du rapport : du début le plus ancien des challenges en cours à la date de fin la plus fréquente (ex. 3 fins au 31/08 et 1 au 30/09 → 31/08). Les challenges expirés sont ignorés.
+
 ## v2.4 — juillet 2026
 - Affichage adapté au mobile : mise en page en colonne, aperçu du rapport mis à l'échelle de l'écran, tableau de répartition défilable, boutons et grilles réorganisés.
 - Logo de l'application (SVG + PNG) et icône d'onglet (favicon).
+- Fichier livré vierge : aucune donnée d'exemple pré-remplie au premier lancement.
 
 ## v2.3 — juin 2026
 - Retrait des modèles de barèmes propres à un fournisseur : la rémunération « € par boîte » se paramètre librement (tranches, booster, minimum).

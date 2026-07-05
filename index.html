@@ -438,16 +438,7 @@ let lastUpdate = null, prevSnapshot = null;
 
 const DEFAULT_DATA = {
   "title":"Challenges Pharmacie",
-  "labs":[
-    {"lab":"Probiolog","gamme":"ATB (1,5€) Florvis,Transit,Dig. facile (2€), Maxi format (3€), Reste (1€)","obj":"30","actuel":"32","logo":"https://www.probiolog.com/app/themes/probiolog/resources/images/logo_navbar_probiolog.png","start":"2026-04-01","end":"2026-06-30","payout":{"type":"perproduct","min":0,"level":"Probiolog"},"products":[{"name":"ATB","amount":1.5},{"name":"Florvis / Transit / Dig. facile","amount":2},{"name":"Maxi format","amount":3},{"name":"Reste","amount":1}]},
-    {"lab":"NHCO","gamme":"Tout","obj":"180","actuel":"118","logo":"https://nhco-nutrition.com/wp-content/uploads/logo-nhco.svg","start":"2026-04-01","end":"2026-06-30"},
-    {"lab":"Santis Lab","gamme":"Pastille : 0,50€ ; Sinon : 1€","obj":"150","actuel":"153","logo":"https://www.santispharma.com/wp-content/themes/santispharma/img/svg/logo/santis-logo.svg","start":"2026-04-01","end":"2026-06-30"},
-    {"lab":"Olioseptil","gamme":"Tout","obj":"60","actuel":"46","logo":"https://www.olioseptil.com/img/logo-176899095613.jpg","start":"2026-04-01","end":"2026-06-30","payout":{"type":"perbox","min":60,"level":"","brackets":[{"from":1,"rate":1}]}},
-    {"lab":"Laboratoire ISN","gamme":"Tout","obj":"60","actuel":"47","logo":"https://www.ineldea.com/wp-content/uploads/2024/10/LOGO_ISN_2024_RVB.png","start":"2026-04-01","end":"2026-06-30","payout":{"type":"perbox","min":60,"level":"","brackets":[{"from":1,"rate":1}]}},
-    {"lab":"Aragan","gamme":"Tout","obj":"100","actuel":"152","logo":"https://pharmacie-parisienne-saintnazaire.pharmavie.fr/uploads/marques/b4355f-aragan.png","start":"2026-04-01","end":"2026-06-30"},
-    {"lab":"Cerave","gamme":"Gamme Violette (5,10,20,40,80) 3€","obj":"10","actuel":"9","logo":"https://upload.wikimedia.org/wikipedia/commons/4/42/CeraVe_logo.png","start":"2026-03-01","end":"2026-06-30","tiers":[{"seuil":5,"prime":15},{"seuil":10,"prime":30},{"seuil":20,"prime":60},{"seuil":40,"prime":120},{"seuil":80,"prime":240}],"products":[{"name":"Gamme Violette","amount":3}]},
-    {"lab":"La roche Posay","gamme":"Cicaplast crème (Normal et spf50+ et 100ml) (1€)","obj":"124","actuel":"59","logo":"https://upload.wikimedia.org/wikipedia/commons/4/47/La_Roche-Posay_%28brand%29.svg","start":"2026-05-01","end":"2026-08-31"}
-  ]
+  "labs":[]
 };
 
 const LOGO_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
@@ -478,7 +469,12 @@ window.onload = () => {
     window.addEventListener('afterprint', () => document.body.classList.remove('printing-rep'));
 };
 
-document.addEventListener('input', () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => { markUpdated(); updateInfographic(); }, 400); });
+document.addEventListener('input', (e) => {
+    // La page Répartition et les modales gèrent leur propre sauvegarde :
+    // ne pas re-rendre l'aperçu ni marquer les challenges comme mis à jour.
+    if (e.target.closest('#view-repartition') || e.target.closest('.modal-bg')) return;
+    clearTimeout(debounceTimer); debounceTimer = setTimeout(() => { markUpdated(); updateInfographic(); }, 400);
+});
 
 /* ---------- Mois ---------- */
 function monthsBetween(startStr, endStr) {
@@ -586,7 +582,7 @@ function createLabInputHTML(data = {}) {
                     <div class="hint">Rémunération = somme (boîtes vendues × montant) des produits, comptée si le minimum trimestriel est atteint. Sans détail par produit : <b>1 €/boîte vendue</b>. Renseignez les ventes par produit dans « 🧾 Produits challengés » ci-dessous.</div>
                     <div style="display:flex;gap:10px">
                         <div style="flex:1"><label>Minimum trimestriel (boîtes)</label><input type="number" min="0" class="pp-min" placeholder="0 = pas de minimum"></div>
-                        <div style="flex:1"><label>Niveau (info)</label><input type="text" class="pp-level" placeholder="ex : Probiolog"></div>
+                        <div style="flex:1"><label>Niveau (info)</label><input type="text" class="pp-level" placeholder="ex : Niveau Or"></div>
                     </div>
                 </div>
 
@@ -877,12 +873,17 @@ function renameLib(id, name) { const lib = loadLibrary(); const it = lib.find(x 
 function deleteLib(id) { saveLibrary(loadLibrary().filter(x => x.id !== id)); refreshLibrarySelects(); renderStorage(); openLibrary(); }
 
 /* ---------- Aide & journal des nouveautés ---------- */
-const APP_VERSION = '2.4';
+const APP_VERSION = '2.6';
 const SEEN_KEY = 'pharma_seen_version';
 const CHANGELOG = [
+    { v:'2.6', d:'juillet 2026', items:[
+        'Optimisations : collecte des données une seule fois par rendu, sauvegarde ignorée quand rien n\'a changé (moins d\'écritures disque), et la saisie dans la page Répartition ne re-génère plus l\'aperçu du rapport ni la date de dernière saisie des challenges.' ] },
+    { v:'2.5', d:'juillet 2026', items:[
+        'Période globale du rapport : du début le plus ancien des challenges en cours à la date de fin la plus fréquente (ex. 3 fins au 31/08 et 1 au 30/09 → 31/08). Les challenges expirés sont ignorés.' ] },
     { v:'2.4', d:'juillet 2026', items:[
         'Affichage adapté au mobile : mise en page en colonne, aperçu du rapport mis à l\'échelle de l\'écran, tableau de répartition défilable, boutons et grilles réorganisés.',
-        'Logo de l\'application et icône d\'onglet (favicon).' ] },
+        'Logo de l\'application et icône d\'onglet (favicon).',
+        'Fichier livré vierge : aucune donnée d\'exemple pré-remplie au premier lancement.' ] },
     { v:'2.3', d:'juin 2026', items:[
         'Retrait des modèles de barèmes propres à un fournisseur : la rémunération « € par boîte » se paramètre désormais librement (tranches, booster, minimum).',
         'Préparation à la publication (dépôt GitHub : README, licence, journal des versions).' ] },
@@ -1335,9 +1336,10 @@ function updateInfographic() {
     _statsCache = new WeakMap();
     const preview = document.getElementById('preview-container');
     preview.innerHTML = '';
-    const labs = collectLabs().map(labModel);
+    const rawLabs = collectLabs();
+    const labs = rawLabs.map(labModel);
 
-    validateBlocks(); renderDeltas(labs); renderKPIs(labs); renderEmptyState(labs.length); saveState();
+    validateBlocks(); renderDeltas(labs); renderKPIs(labs); renderEmptyState(labs.length); saveState(rawLabs);
 
     const mainTitle = document.getElementById('main-title-input').value;
     const period = periodLabel(labs);
@@ -1377,10 +1379,18 @@ function statusVisual(s) {
 }
 
 function periodLabel(labs) {
-    const starts = labs.map(l => l.start).filter(Boolean).sort();
-    const ends = labs.map(l => l.end).filter(Boolean).sort();
+    // Période affichée : du début le plus ancien des challenges EN COURS
+    // à la date de fin la plus fréquente (ex. 3 fins au 31/08 et 1 au 30/09 → 31/08).
+    const today = new Date().toISOString().slice(0, 10);
+    let pool = labs.filter(l => l.end && l.end >= today);
+    if (!pool.length) pool = labs;                               // repli : tout est expiré
+    const starts = pool.map(l => l.start).filter(Boolean).sort();
+    const ends = pool.map(l => l.end).filter(Boolean);
     if (!starts.length || !ends.length) return '';
-    return `${formatDate(starts[0])} – ${formatDate(ends[ends.length-1])}`;
+    const freq = {};
+    ends.forEach(e => { freq[e] = (freq[e] || 0) + 1; });
+    const end = Object.keys(freq).sort((a, b) => freq[b] - freq[a] || a.localeCompare(b))[0];
+    return `${formatDate(starts[0])} – ${formatDate(end)}`;
 }
 
 function logoSrc(logo) {
@@ -1665,9 +1675,13 @@ function newPeriod() {
 function formatDate(s) { const d = parseDate(s); if (!d) return "??/??"; return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' }); }
 function esc(v) { if (v === undefined || v === null) return ''; return String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function saveState() {
+let _lastSavedJSON = null;
+function saveState(rawLabs) {
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ title:document.getElementById('main-title-input').value, labs:collectLabs(), lastUpdate }));
+        const json = JSON.stringify({ title:document.getElementById('main-title-input').value, labs:rawLabs || collectLabs(), lastUpdate });
+        if (json === _lastSavedJSON) return;           // rien n'a changé : pas d'écriture ni de re-rendu
+        _lastSavedJSON = json;
+        localStorage.setItem(STORAGE_KEY, json);
         const el = document.getElementById('save-state');
         if (el) el.textContent = '✔ Enregistré automatiquement à ' + new Date().toLocaleTimeString('fr-FR');
         renderUpdateBanner();
