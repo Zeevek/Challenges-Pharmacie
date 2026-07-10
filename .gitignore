@@ -1,0 +1,6 @@
+# Sauvegardes locales exportées depuis l'application
+*.json
+!package.json
+# Fichiers systèmes
+.DS_Store
+Thumbs.db

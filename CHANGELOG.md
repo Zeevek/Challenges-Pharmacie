@@ -1,5 +1,10 @@
 # Journal des versions
 
+## v2.9 — juillet 2026
+- Répartition : versements en euros entiers (un seul virement rond par personne), champ « montant à déduire / report » et reliquat « à reporter », bouton « Copier le plan de versement ».
+- Postes personnalisables : ajout, renommage et suppression de postes.
+- Logos de laboratoires fournis (dossier `logos/`) et sélecteur « Logos fournis » sur chaque fiche.
+
 ## v2.8 — juillet 2026
 - Icône d'écran d'accueil : le logo s'affiche désormais quand l'application est ajoutée à l'accueil d'un iPhone (apple-touch-icon) ou d'un Android (manifest).
 

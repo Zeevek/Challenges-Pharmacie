@@ -146,6 +146,11 @@
         .rep-totals .lbl { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; }
         .rep-coef-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; max-width:720px; }
         .rep-coef-grid label { font-weight:600; font-size:13px; }
+        .poste-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; max-width:440px; }
+        .poste-row input[type=text] { flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; }
+        .poste-row input[type=number] { width:90px; padding:8px; border:1px solid #cbd5e1; border-radius:6px; }
+        .poste-row button[disabled] { opacity:.35; cursor:not-allowed; }
+        .logo-provided { font-size:11px; padding:5px 8px; border:1px solid var(--border); background:#f8fafc; border-radius:6px; cursor:pointer; }
         .rep-inactive { opacity:.45; }
         .rep-inactive .share { color:var(--text-muted) !important; }
 
@@ -401,29 +406,35 @@
                 <button type="button" class="addrow" onclick="repResetAmounts()">↻ Réinitialiser aux gains calculés</button>
             </div>
             <div class="rep-pool">Montant total à répartir : <b id="rep-pool-val">0 €</b></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+                <label style="margin:0">Montant à déduire (réserve / report)</label>
+                <input type="number" min="0" step="1" id="rep-report" oninput="repReport(this.value)" style="width:110px"> €
+                <span class="hint" style="margin:0">Retiré du pool avant répartition. Les parts sont versées en <b>euros entiers</b> ; le reliquat se reporte.</span>
+            </div>
 
             <div class="rep-section-title">Équipe &amp; dispatch</div>
             <div class="rep-table-wrap"><table class="rep-table"><thead><tr>
-                <th style="text-align:center">Participe</th><th>Nom</th><th>Prénom</th><th>Email</th><th>Poste</th><th>Heures</th><th style="text-align:right">Part</th><th style="text-align:center">Payé</th><th></th>
+                <th style="text-align:center">Participe</th><th>Nom</th><th>Prénom</th><th>Email</th><th>Poste</th><th>Heures</th><th style="text-align:right">À verser</th><th style="text-align:center">Payé</th><th></th>
             </tr></thead><tbody id="rep-people"></tbody></table></div>
-            <button type="button" class="addrow" onclick="addPerson()">+ Ajouter une personne</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+                <button type="button" class="addrow" onclick="addPerson()">+ Ajouter une personne</button>
+                <button type="button" class="addrow" onclick="copyPlan()">📋 Copier le plan de versement</button>
+            </div>
 
             <div class="rep-totals">
-                <div><span class="lbl">Total à verser</span><b id="rep-total-verser">0 €</b></div>
+                <div><span class="lbl">Montant à répartir</span><b id="rep-total-pool">0 €</b></div>
+                <div><span class="lbl">Distribué (€ entiers)</span><b id="rep-total-verser">0 €</b></div>
                 <div><span class="lbl">Déjà versé</span><b id="rep-total-verse" style="color:#047857">0 €</b></div>
                 <div><span class="lbl">Reste à verser</span><b id="rep-total-reste" style="color:#b45309">0 €</b></div>
+                <div><span class="lbl">À reporter</span><b id="rep-total-report" style="color:#7c3aed">0 €</b></div>
             </div>
         </div>
 
         <div id="rep-tab-param" style="display:none">
-            <div class="rep-section-title">Pondération par poste</div>
-            <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">Coefficient de répartition selon le poste : plus il est élevé, plus la part est grande.</p>
-            <div class="rep-coef-grid">
-                <label>Pharmacien<input type="number" step="0.1" min="0" id="coef-pharmacien" oninput="repCoef('pharmacien',this.value)"></label>
-                <label>Préparateur<input type="number" step="0.1" min="0" id="coef-preparateur" oninput="repCoef('preparateur',this.value)"></label>
-                <label>Rayonniste<input type="number" step="0.1" min="0" id="coef-rayonniste" oninput="repCoef('rayonniste',this.value)"></label>
-                <label>Étudiant<input type="number" step="0.1" min="0" id="coef-etudiant" oninput="repCoef('etudiant',this.value)"></label>
-            </div>
+            <div class="rep-section-title">Postes &amp; pondération</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">Un coefficient par poste (plus il est élevé, plus la part est grande). Ajoutez, renommez ou supprimez des postes selon votre équipe.</p>
+            <div id="rep-postes"></div>
+            <button type="button" class="addrow" onclick="addPoste()">+ Ajouter un poste</button>
             <label class="summary-toggle" style="margin-top:16px;"><input type="checkbox" id="rep-use-hours" onchange="repUseHours(this.checked)" style="width:auto;margin:0;"> Pondérer aussi par les heures travaillées <span class="info-i" title="Multiplie la part par (heures de la personne ÷ base temps plein). Les personnes sans heures renseignées gardent leur coefficient de poste seul.">i</span></label>
             <div style="margin-top:12px;max-width:280px">
                 <label>Base temps plein (référentiel)</label>
@@ -452,6 +463,11 @@ const DEFAULT_DATA = {
   "labs":[]
 };
 
+const PROVIDED_LOGOS = [
+    ['logos/aragan.png','Aragan'], ['logos/cerave.png','CeraVe'], ['logos/isn.png','ISN'],
+    ['logos/la-roche-posay.png','La Roche-Posay'], ['logos/nhco.png','NHCO'],
+    ['logos/olioseptil.png','Olioseptil'], ['logos/probiolog.png','Probiolog'], ['logos/santis.png','Santis Lab']
+];
 const LOGO_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><rect width="100" height="50" rx="6" fill="#f1f5f9"/><text x="50" y="30" font-family="sans-serif" font-size="12" fill="#94a3b8" text-anchor="middle">LOGO</text></svg>'
 );
@@ -629,6 +645,7 @@ function createLabInputHTML(data = {}) {
             </div>
             <div class="logo-actions">
                 <button type="button" onclick="pickLogo(this)">📷 Importer</button>
+                <select class="logo-provided" title="Charger un logo fourni avec l'application" onchange="pickProvidedLogo(this)"><option value="">💊 Logos fournis…</option>${PROVIDED_LOGOS.map(([v,l]) => `<option value="${v}">${l}</option>`).join('')}</select>
                 <select class="logo-lib" title="Réutiliser un logo enregistré" onchange="onLibPick(this)"><option value="">🗂️ Bibliothèque…</option></select>
                 <button type="button" onclick="clearLogo(this)">Effacer</button>
             </div>
@@ -808,6 +825,16 @@ function clearLogo(btn) {
     g.querySelector('.logo-preview').src = LOGO_PLACEHOLDER; g.querySelector('.logo-status').textContent = '';
     markUpdated(); updateInfographic();
 }
+function pickProvidedLogo(sel) {
+    if (!sel.value) return;
+    const g = sel.closest('.lab-input-group');
+    g.querySelector('.in-logo').value = sel.value;
+    const uu = g.querySelector('.in-logo-url'); if (uu) uu.value = sel.value;
+    g.querySelector('.logo-preview').src = sel.value;
+    g.querySelector('.logo-status').textContent = '✓ logo fourni';
+    sel.value = '';
+    markUpdated(); updateInfographic();
+}
 function onLogoFile(input) {
     const file = input.files[0]; if (!file) return;
     processImageFile(file, (dataUri) => {
@@ -884,9 +911,13 @@ function renameLib(id, name) { const lib = loadLibrary(); const it = lib.find(x 
 function deleteLib(id) { saveLibrary(loadLibrary().filter(x => x.id !== id)); refreshLibrarySelects(); renderStorage(); openLibrary(); }
 
 /* ---------- Aide & journal des nouveautés ---------- */
-const APP_VERSION = '2.8';
+const APP_VERSION = '2.9';
 const SEEN_KEY = 'pharma_seen_version';
 const CHANGELOG = [
+    { v:'2.9', d:'juillet 2026', items:[
+        'Répartition : versements en euros entiers (un seul virement rond par personne), champ « montant à déduire / report » et reliquat « à reporter » à la prochaine dispatch, bouton « Copier le plan de versement ».',
+        'Postes personnalisables : ajout, renommage et suppression de postes (au-delà de pharmacien / préparateur / rayonniste / étudiant).',
+        'Logos de laboratoires fournis avec l\'application (Aragan, CeraVe, ISN, La Roche-Posay, NHCO, Olioseptil, Probiolog, Santis) : sélecteur « Logos fournis » sur chaque fiche.' ] },
     { v:'2.8', d:'juillet 2026', items:[
         'Icône d\'écran d\'accueil : le logo s\'affiche désormais quand l\'application est ajoutée à l\'accueil d\'un iPhone (apple-touch-icon) ou d\'un Android (manifest).' ] },
     { v:'2.7', d:'juillet 2026', items:[
@@ -943,7 +974,7 @@ function openHelp() {
         S('6. Logos', 'Importez une image, glissez-la sur la vignette ou collez-la (Ctrl+V). Elle est stockée localement (fonctionne hors-ligne) et réutilisable via la <span class="k">Bibliothèque</span>.') +
         S('7. Rapport PDF', 'Le bouton <span class="k">Télécharger le PDF</span> génère le rapport (couverture + fiches). Hors-ligne, il bascule automatiquement sur l\'impression du navigateur (Enregistrer en PDF).') +
         S('8. Sauvegarde & transfert', 'Utilisez <span class="k">Sauvegarder (.json)</span> puis <span class="k">Charger</span> pour transférer vos données (logos, historique et répartition inclus) vers un autre poste. L\'<span class="k">export CSV</span> ouvre les chiffres dans Excel.') +
-        S('9. Répartition des gains', 'L\'onglet <span class="k">💰 Répartition</span> (en haut) permet de distribuer les gains à l\'équipe : cochez les challenges concernés, ajoutez les personnes (nom, email, poste), et l\'outil calcule la part de chacun selon la <span class="k">pondération par poste</span> réglée dans « Paramètres » (et, en option, le taux horaire). Cochez « Payé » pour suivre le <span class="k">déjà versé</span> et le <span class="k">reste à verser</span>. Boutons Imprimer et CSV dédiés.') +
+        S('9. Répartition des gains', 'L\'onglet <span class="k">💰 Répartition</span> (en haut) permet de distribuer les gains à l\'équipe : cochez les challenges concernés, ajoutez les personnes (nom, email, poste), et l\'outil calcule la part de chacun selon la <span class="k">pondération par poste</span> réglée dans « Paramètres » (et, en option, le taux horaire). Les parts sont versées en <span class="k">euros entiers</span> (un seul virement rond par personne) ; un champ « montant à déduire / report » met de côté une réserve et le reliquat s\'affiche « à reporter ». Réglez les <span class="k">postes et coefficients</span> (ajout/suppression possible) dans « Paramètres ». Cochez « Payé » pour suivre le déjà versé et le reste. Boutons « Copier le plan de versement », Imprimer et CSV.') +
         `<button class="main-btn btn-add" style="margin-top:14px;" onclick="closeModal('help-modal')">Fermer</button>`;
     document.getElementById('help-modal').classList.add('open');
 }
@@ -964,8 +995,13 @@ window.addEventListener('orientationchange', fitPreview);
 
 /* ---------- Page Répartition ---------- */
 const REP_KEY = 'pharma_repartition_v1';
-const POSTES = [['pharmacien','Pharmacien'],['preparateur','Préparateur'],['rayonniste','Rayonniste'],['etudiant','Étudiant']];
-const DEFAULT_REP = { settings:{ coef:{ pharmacien:1.5, preparateur:1.2, rayonniste:1, etudiant:0.8 }, useHours:false, baseHours:35 }, challenges:{}, customChallenges:[], people:[] };
+const DEFAULT_POSTES = [
+    { id:'pharmacien', label:'Pharmacien', coef:1.5 },
+    { id:'preparateur', label:'Préparateur', coef:1.2 },
+    { id:'rayonniste', label:'Rayonniste', coef:1 },
+    { id:'etudiant', label:'Étudiant', coef:0.8 }
+];
+const DEFAULT_REP = { settings:{ postes:JSON.parse(JSON.stringify(DEFAULT_POSTES)), useHours:false, baseHours:35 }, challenges:{}, customChallenges:[], people:[], report:0 };
 let repState = null;
 function repLoad() {
     let s;
@@ -974,6 +1010,11 @@ function repLoad() {
     // valeurs par défaut / migration
     if (s.settings.baseHours == null) s.settings.baseHours = 35;
     if (s.settings.useHours == null) s.settings.useHours = !!s.settings.useTaux;
+    if (!Array.isArray(s.settings.postes)) {                       // migration depuis l'ancien settings.coef
+        const coef = s.settings.coef || {};
+        s.settings.postes = DEFAULT_POSTES.map(p => ({ id:p.id, label:p.label, coef: coef[p.id] != null ? coef[p.id] : p.coef }));
+    }
+    if (s.report == null) s.report = 0;
     if (!Array.isArray(s.customChallenges)) s.customChallenges = [];
     if (!s.challenges) s.challenges = {};
     if (!Array.isArray(s.people)) s.people = [];
@@ -981,7 +1022,8 @@ function repLoad() {
     return s;
 }
 function repSave() { try { localStorage.setItem(REP_KEY, JSON.stringify(repState)); } catch (e) {} }
-function posteLabel(v) { const f = POSTES.find(x => x[0] === v); return f ? f[1] : v; }
+function posteLabel(v) { const f = (repState.settings.postes || []).find(x => x.id === v); return f ? f.label : v; }
+function posteCoef(v) { const f = (repState.settings.postes || []).find(x => x.id === v); return f ? (parseFloat(f.coef) || 0) : 0; }
 
 function switchView(v) {
     document.getElementById('view-challenges').style.display = v === 'challenges' ? 'block' : 'none';
@@ -1018,17 +1060,27 @@ function repRefresh() {
         </div>`).join('');
     if (!chalHTML) chalHTML = '<p style="color:var(--text-muted)">Aucun challenge. Ajoutez-en dans l\'onglet Challenges, ou « + Ajouter un laboratoire ».</p>';
     document.getElementById('rep-challenges').innerHTML = chalHTML;
-    ['pharmacien','preparateur','rayonniste','etudiant'].forEach(k => { const el = document.getElementById('coef-' + k); if (el) el.value = repState.settings.coef[k] != null ? repState.settings.coef[k] : ''; });
+    repRenderPostes();
     document.getElementById('rep-use-hours').checked = !!repState.settings.useHours;
     const bh = document.getElementById('rep-base-hours'); if (bh) bh.value = repState.settings.baseHours != null ? repState.settings.baseHours : 35;
+    const rr = document.getElementById('rep-report'); if (rr) rr.value = repState.report != null ? repState.report : 0;
     repRenderPeople();
     repRecalc();
     repSave();
 }
+function repRenderPostes() {
+    const box = document.getElementById('rep-postes'); if (!box) return;
+    const only = (repState.settings.postes || []).length <= 1;
+    box.innerHTML = (repState.settings.postes || []).map(p => `<div class="poste-row" data-id="${p.id}">
+        <input type="text" value="${esc(p.label)}" placeholder="Intitulé du poste" oninput="repPosteField('${p.id}','label',this.value)">
+        <input type="number" step="0.1" min="0" value="${p.coef != null ? p.coef : ''}" title="Coefficient" oninput="repPosteField('${p.id}','coef',this.value)">
+        <button class="lib-del" onclick="removePoste('${p.id}')" ${only ? 'disabled' : ''} title="Supprimer ce poste">✕</button>
+    </div>`).join('');
+}
 function repRenderPeople() {
     const baseH = repState.settings.baseHours != null ? repState.settings.baseHours : 35;
     document.getElementById('rep-people').innerHTML = repState.people.map(p => {
-        const opts = POSTES.map(([v, l]) => `<option value="${v}" ${p.poste === v ? 'selected' : ''}>${l}</option>`).join('');
+        const opts = (repState.settings.postes || []).map(pp => `<option value="${pp.id}" ${p.poste === pp.id ? 'selected' : ''}>${esc(pp.label)}</option>`).join('');
         const active = p.active !== false;
         return `<tr class="${active ? '' : 'rep-inactive'}">
             <td style="text-align:center"><input type="checkbox" ${active ? 'checked' : ''} onchange="repPerson('${p.id}','active',this.checked)" style="width:auto" title="Participe à la distribution en cours"></td>
@@ -1050,10 +1102,19 @@ function repCustomToggle(el) { const c = repState.customChallenges.find(x => x.i
 function repCustomField(el, field) { const c = repState.customChallenges.find(x => x.id === el.dataset.id); if (!c) return; c[field] = field === 'amount' ? (parseFloat(el.value) || 0) : el.value; repRecalc(); repSave(); }
 function removeCustomChal(id) { repState.customChallenges = repState.customChallenges.filter(x => x.id !== id); repSave(); repRefresh(); }
 function repPerson(id, field, val) { const p = repState.people.find(x => x.id === id); if (!p) return; p[field] = val; if (field === 'active') repRenderPeople(); repRecalc(); repSave(); }
-function repCoef(k, v) { repState.settings.coef[k] = parseFloat(v) || 0; repRecalc(); repSave(); }
+function repPosteField(id, field, val) { const p = (repState.settings.postes || []).find(x => x.id === id); if (!p) return; p[field] = field === 'coef' ? (parseFloat(val) || 0) : val; if (field === 'label') repRenderPeople(); repRecalc(); repSave(); }
+function addPoste() { const id = 'poste' + Date.now() + Math.floor(Math.random()*1000); repState.settings.postes.push({ id, label:'Nouveau poste', coef:1 }); repSave(); repRenderPostes(); repRenderPeople(); repRecalc(); }
+function removePoste(id) {
+    const postes = repState.settings.postes; if (postes.length <= 1) return;
+    repState.settings.postes = postes.filter(p => p.id !== id);
+    const fallback = repState.settings.postes[0].id;
+    repState.people.forEach(p => { if (p.poste === id) p.poste = fallback; });
+    repSave(); repRenderPostes(); repRenderPeople(); repRecalc();
+}
 function repUseHours(b) { repState.settings.useHours = b; repRecalc(); repSave(); }
 function repBaseHours(v) { repState.settings.baseHours = parseFloat(v) || 35; repRenderPeople(); repRecalc(); repSave(); }
-function addPerson() { repState.people.push({ id:'P' + Date.now() + Math.floor(Math.random()*1000), nom:'', prenom:'', email:'', poste:'preparateur', heures:'', active:true, paid:false }); repSave(); repRenderPeople(); repRecalc(); }
+function repReport(v) { repState.report = Math.max(0, parseFloat(v) || 0); repRecalc(); repSave(); }
+function addPerson() { repState.people.push({ id:'P' + Date.now() + Math.floor(Math.random()*1000), nom:'', prenom:'', email:'', poste:(repState.settings.postes[0] || {}).id || 'preparateur', heures:'', active:true, paid:false }); repSave(); repRenderPeople(); repRecalc(); }
 function removePerson(id) { repState.people = repState.people.filter(p => p.id !== id); repSave(); repRenderPeople(); repRecalc(); }
 function repResetAmounts() {
     repLabs().forEach(l => { const gain = Math.round(estimateGains(l, projActuOf(l)).acquired * 100) / 100; repState.challenges[l.name] = { included: gain > 0, amount: gain }; });
@@ -1063,7 +1124,7 @@ function repWeights() {
     const useHours = repState.settings.useHours; const base = parseFloat(repState.settings.baseHours) || 35; const w = {}; let sum = 0;
     repState.people.forEach(p => {
         if (p.active === false) { w[p.id] = 0; return; }
-        const coef = parseFloat(repState.settings.coef[p.poste] || 0) || 0; const h = parseFloat(p.heures) || 0;
+        const coef = posteCoef(p.poste); const h = parseFloat(p.heures) || 0;
         const weight = coef * ((useHours && h > 0) ? h / base : 1); w[p.id] = weight; sum += weight;
     });
     return { w, sum };
@@ -1074,36 +1135,71 @@ function repPool() {
     (repState.customChallenges || []).forEach(c => { if (c.included) pool += (parseFloat(c.amount) || 0); });
     return pool;
 }
-function repRecalc() {
-    const pool = repPool();
-    const el = document.getElementById('rep-pool-val'); if (el) el.textContent = fmtEur(pool);
-    const { w, sum } = repWeights();
-    let verse = 0;
-    repState.people.forEach(p => {
-        const active = p.active !== false;
-        const share = (active && sum > 0) ? pool * w[p.id] / sum : 0;
-        const s = document.getElementById('share-' + p.id); if (s) s.textContent = active ? fmtEur(share) : '—';
-        if (active && p.paid) verse += share;
-    });
-    const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
-    set('rep-total-verser', fmtEur(pool));
-    set('rep-total-verse', fmtEur(verse));
-    set('rep-total-reste', fmtEur(pool - verse));
+// Répartition en euros entiers (méthode du plus fort reste) : un seul versement rond par personne.
+function largestRemainder(vals, target) {
+    const floors = vals.map(v => Math.floor(v));
+    let rem = target - floors.reduce((a, b) => a + b, 0);
+    const order = vals.map((v, i) => ({ i, f: v - Math.floor(v) })).sort((a, b) => b.f - a.f);
+    const out = floors.slice();
+    for (let k = 0; k < order.length && rem > 0; k++) { out[order[k].i]++; rem--; }
+    return out;
 }
+function repCompute() {
+    const pool = repPool();
+    const report = Math.max(0, parseFloat(repState.report) || 0);
+    const distribuable = Math.max(0, pool - report);
+    const target = Math.floor(distribuable + 1e-9);                 // euros entiers distribuables
+    const { w, sum } = repWeights();
+    const actives = repState.people.filter(p => p.active !== false);
+    const raw = actives.map(p => (sum > 0 ? distribuable * w[p.id] / sum : 0));
+    const rounded = (sum > 0 && target > 0) ? largestRemainder(raw, target) : actives.map(() => 0);
+    const aVerser = {}; actives.forEach((p, i) => { aVerser[p.id] = rounded[i]; });
+    let distributed = 0; actives.forEach(p => { distributed += aVerser[p.id]; });
+    return { pool, report, distribuable, distributed, aVerser, aReporter: Math.max(0, pool - distributed) };
+}
+function repRecalc() {
+    const c = repCompute();
+    repState.people.forEach(p => { const s = document.getElementById('share-' + p.id); if (s) s.textContent = (p.active !== false) ? fmtEur(c.aVerser[p.id] || 0) : '—'; });
+    let verse = 0; repState.people.forEach(p => { if (p.active !== false && p.paid) verse += (c.aVerser[p.id] || 0); });
+    const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+    const pv = document.getElementById('rep-pool-val'); if (pv) pv.textContent = fmtEur(c.pool);
+    set('rep-total-pool', fmtEur(c.pool));
+    set('rep-total-verser', fmtEur(c.distributed));
+    set('rep-total-verse', fmtEur(verse));
+    set('rep-total-reste', fmtEur(c.distributed - verse));
+    set('rep-total-report', fmtEur(c.aReporter));
+}
+function copyPlan() {
+    const c = repCompute();
+    const lines = repState.people.filter(p => p.active !== false && (c.aVerser[p.id] || 0) > 0)
+        .map(p => `${((p.prenom || '') + ' ' + (p.nom || '')).trim() || '(sans nom)'} : ${c.aVerser[p.id]} €`);
+    if (!lines.length) { showToast('Aucun versement à planifier.', 'OK'); return; }
+    let txt = 'Plan de versement — ' + new Date().toLocaleDateString('fr-FR') + '\n' + lines.join('\n');
+    if (c.aReporter > 0) txt += `\nÀ reporter : ${fmtEur(c.aReporter)}`;
+    const ok = () => showToast('Plan de versement copié dans le presse-papiers.', 'OK');
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, () => fallbackCopy(txt, ok));
+    else fallbackCopy(txt, ok);
+}
+function fallbackCopy(txt, ok) { const ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} ta.remove(); if (ok) ok(); }
 function printRepartition() { document.body.classList.add('printing-rep'); window.print(); }
 function exportRepCSV() {
-    const pool = repPool(); const { w, sum } = repWeights();
-    const rows = [["Participe","Nom","Prenom","Email","Poste","Heures","Part_EUR","Paye"]];
+    const c = repCompute();
+    const rows = [["Participe","Nom","Prenom","Email","Poste","Heures","A_verser_EUR","Paye"]];
     let verse = 0;
     repState.people.forEach(p => {
         const active = p.active !== false;
-        const share = (active && sum > 0) ? pool * w[p.id] / sum : 0;
-        if (active && p.paid) verse += share;
-        rows.push([active ? 'oui' : 'non', p.nom, p.prenom, p.email, posteLabel(p.poste), p.heures || '', active ? Math.round(share*100)/100 : '', p.paid ? 'oui' : 'non']);
+        const av = active ? (c.aVerser[p.id] || 0) : 0;
+        if (active && p.paid) verse += av;
+        rows.push([active ? 'oui' : 'non', p.nom, p.prenom, p.email, posteLabel(p.poste), p.heures || '', active ? av : '', p.paid ? 'oui' : 'non']);
     });
-    rows.push([]); rows.push(["Total a verser", pool]);
-    rows.push(["Deja verse", Math.round(verse*100)/100]); rows.push(["Reste a verser", Math.round((pool - verse)*100)/100]);
-    const csv = rows.map(r => r.map(c => { let s = String(c); if (/^[=+@\t\r]/.test(s) || (/^-/.test(s) && isNaN(Number(s)))) s = "'" + s; return `"${s.replace(/"/g,'""')}"`; }).join(';')).join('\r\n');
+    rows.push([]);
+    rows.push(["Montant a repartir", c.pool]);
+    rows.push(["A deduire (reserve)", c.report]);
+    rows.push(["Distribue (euros entiers)", c.distributed]);
+    rows.push(["Deja verse", verse]);
+    rows.push(["Reste a verser", c.distributed - verse]);
+    rows.push(["A reporter", c.aReporter]);
+    const csv = rows.map(r => r.map(cell => { let s = String(cell); if (/^[=+@\t\r]/.test(s) || (/^-/.test(s) && isNaN(Number(s)))) s = "'" + s; return `"${s.replace(/"/g,'""')}"`; }).join(';')).join('\r\n');
     download(new Blob(["\uFEFF" + csv], { type:"text/csv;charset=utf-8;" }), `repartition_${new Date().toISOString().slice(0,10)}.csv`);
 }
 
@@ -1409,7 +1505,9 @@ function periodLabel(labs) {
 }
 
 function logoSrc(logo) {
-    return logo ? (logo.startsWith('data:') ? logo : `https://images.weserv.nl/?url=${encodeURIComponent(logo.replace(/^https?:\/\//,''))}&n=-1`) : LOGO_PLACEHOLDER;
+    if (!logo) return LOGO_PLACEHOLDER;
+    if (logo.startsWith('data:') || !/^https?:\/\//i.test(logo)) return logo;   // data URI ou chemin local (logos/…) : direct
+    return `https://images.weserv.nl/?url=${encodeURIComponent(logo.replace(/^https?:\/\//,''))}&n=-1`;
 }
 
 function masthead(title, period, pageNo, totalPages, label) {
@@ -1467,7 +1565,7 @@ function buildCardPage(pageLabs, mainTitle, period, pageNo, totalPages) {
             <div class="pcard" style="--st:${v.color};--st-soft:${v.soft}">
                 <div class="pcard-head">
                     <div class="pcard-name">${esc(lab.name)}</div>
-                    <img class="pcard-logo" src="${logoSrc(lab.logo)}" crossorigin="anonymous" referrerpolicy="no-referrer" onerror="this.src='${LOGO_PLACEHOLDER}'">
+                    ${(() => { const ls = logoSrc(lab.logo); const remote = /^https?:\/\//i.test(ls); return `<img class="pcard-logo" src="${ls}"${remote ? ' crossorigin="anonymous" referrerpolicy="no-referrer"' : ''} onerror="this.src='${LOGO_PLACEHOLDER}'">`; })()}
                 </div>
                 <div class="pcard-main">
                     <div class="gauge">${donutSVG(s.hasObj ? s.percent : 0, s.hasObj ? v.color : '#cbd5d0')}<div class="val"><div class="pc">${centre}</div></div></div>

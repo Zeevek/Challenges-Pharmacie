@@ -44,6 +44,12 @@ Trois modes par challenge :
 - Case « Participe » pour inclure/exclure une personne d'une distribution sans la retirer de l'effectif
 - Totaux : à verser, déjà versé, reste à verser — impression et export CSV dédiés
 
+### 🏷️ Logos de laboratoires fournis
+
+Le dossier [`logos/`](logos/) contient des logos détourés (fond transparent) prêts à l'emploi : Aragan, CeraVe, ISN, La Roche-Posay, NHCO, Olioseptil, Probiolog, Santis Lab. Sur chaque fiche, le menu **« 💊 Logos fournis »** les applique en un clic.
+
+> Ces logos se chargent directement lorsque l'application est publiée (GitHub Pages) ou ouverte via un serveur local. En ouverture par simple double-clic (`file://`), préférez l'import d'image ou un logo enregistré dans la bibliothèque.
+
 ### 🔒 Données & portabilité
 - Tout est stocké **localement** dans le navigateur ; rien ne quitte le poste
 - **Sauvegarde / chargement `.json`** (challenges, historique, logos, répartition) pour transférer d'un poste à l'autre
