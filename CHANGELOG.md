@@ -1,5 +1,8 @@
 # Journal des versions
 
+## v3.2 — juillet 2026
+- Gains comptés à l'instant de la consultation uniquement : plus d'estimation au rythme de vente. Tant que l'objectif (ou le 1er palier) n'est pas atteint, le gain affiché est 0 ; les totaux (couverture, indicateurs, CSV) ne montrent plus que les gains acquis. L'indicateur de rythme des ventes (« ~X projeté ») est conservé.
+
 ## v3.1 — juillet 2026
 - Rémunération simplifiée : règle unique automatique — 1 €/boîte si l'objectif (ou le 1er palier défini) est atteint, sinon 0 ; primes de paliers cumulées ; barème produits (boîtes × montant) prioritaire quand les quantités sont renseignées.
 - Répartition : arrondi automatique à l'euro inférieur, report calculé automatiquement avec indication du laboratoire où reste le solde, mémorisation du report et case « Utiliser le report » à la dispatch suivante, plan de versement conseillé affiché (virements regroupés par laboratoire).

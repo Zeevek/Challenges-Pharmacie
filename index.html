@@ -884,9 +884,11 @@ function renameLib(id, name) { const lib = loadLibrary(); const it = lib.find(x 
 function deleteLib(id) { saveLibrary(loadLibrary().filter(x => x.id !== id)); refreshLibrarySelects(); renderStorage(); openLibrary(); }
 
 /* ---------- Aide & journal des nouveautés ---------- */
-const APP_VERSION = '3.1';
+const APP_VERSION = '3.2';
 const SEEN_KEY = 'pharma_seen_version';
 const CHANGELOG = [
+    { v:'3.2', d:'juillet 2026', items:[
+        'Gains comptés à l\'instant de la consultation uniquement : plus d\'estimation au rythme de vente. Tant que l\'objectif (ou le 1er palier) n\'est pas atteint, le gain affiché est 0 ; les totaux (couverture, indicateurs, CSV) ne montrent plus que les gains acquis. L\'indicateur de rythme des ventes (« ~X projeté ») est conservé.' ] },
     { v:'3.1', d:'juillet 2026', items:[
         'Rémunération simplifiée : règle unique automatique — 1 €/boîte si l\'objectif (ou le 1er palier défini) est atteint, sinon 0 ; primes de paliers cumulées ; barème produits (boîtes × montant) prioritaire quand les quantités sont renseignées.',
         'Répartition : arrondi automatique à l\'euro inférieur, report calculé automatiquement avec indication du laboratoire où reste le solde, mémorisation du report et case « Utiliser le report » à la dispatch suivante, plan de versement conseillé affiché (virements regroupés par laboratoire).',
@@ -951,7 +953,7 @@ function openHelp() {
         S('2. Saisie mensuelle', 'Votre logiciel métier donne les ventes par mois : ouvrez <span class="k">Saisie mensuelle</span>, cochez la case, et reportez chaque mois. Le total et la projection se calculent seuls.') +
         S('3. Mise à jour du mercredi', 'Le bandeau du haut indique la dernière saisie et vous alerte au-delà de 7 jours. Le bouton <span class="k">+1 / +5</span> incrémente le réalisé en un clic au comptoir.') +
         S('4. Rémunération', 'Règle automatique : <span class="k">1 €/boîte si l\'objectif est atteint</span> (ou le 1<sup>er</sup> palier si des paliers sont définis), sinon 0. Les <span class="k">primes des paliers</span> atteints s\'ajoutent (cumulatif, type Cerave). Si les <span class="k">boîtes vendues</span> sont renseignées dans « Produits challengés », le barème (boîtes × montant) remplace le 1 €/boîte.') +
-        S('5. Gains estimés', 'Chaque fiche affiche le gain <span class="k">acquis</span> (réalisé actuel) et <span class="k">estimé</span> (au rythme projeté). Tant que l\'objectif (ou le 1<sup>er</sup> palier) n\'est pas atteint, l\'outil indique combien de boîtes manquent et ce que leur franchissement débloque. Le total figure sur la couverture du PDF.') +
+        S('5. Gains', 'Chaque fiche affiche le gain <span class="k">acquis à l\'instant de la consultation</span> : 0 tant que l\'objectif (ou le 1<sup>er</sup> palier) n\'est pas atteint, puis le montant réel accumulé. Aucune projection : seuls les objectifs déjà atteints comptent. La fiche indique combien de boîtes manquent et ce que leur franchissement débloque. Le total figure sur la couverture du PDF.') +
         S('6. Logos', 'Importez une image, glissez-la sur la vignette ou collez-la (Ctrl+V). Elle est stockée localement (fonctionne hors-ligne) et réutilisable via la <span class="k">Bibliothèque</span>.') +
         S('7. Rapport PDF', 'Le bouton <span class="k">Télécharger le PDF</span> génère le rapport (couverture + fiches). Hors-ligne, il bascule automatiquement sur l\'impression du navigateur (Enregistrer en PDF).') +
         S('8. Sauvegarde & transfert', 'Utilisez <span class="k">Sauvegarder (.json)</span> puis <span class="k">Charger</span> pour transférer vos données (logos, historique et répartition inclus) vers un autre poste. L\'<span class="k">export CSV</span> ouvre les chiffres dans Excel.') +
@@ -1024,7 +1026,7 @@ function repLabs() { return collectLabs().map(labModel); }
 function repRefresh() {
     const labs = repLabs();
     let chalHTML = labs.map(l => {
-        const gain = Math.round(estimateGains(l, projActuOf(l)).acquired * 100) / 100;
+        const gain = Math.round(estimateGains(l).acquired * 100) / 100;
         if (!repState.challenges[l.name]) repState.challenges[l.name] = { included: gain > 0, amount: gain };
         const c = repState.challenges[l.name];
         return `<div class="rep-chal">
@@ -1107,7 +1109,7 @@ function repUseCarry(b) { repState.useCarry = !!b; repRecalc(); repSave(); }
 function addPerson() { repState.people.push({ id:'P' + Date.now() + Math.floor(Math.random()*1000), nom:'', prenom:'', email:'', poste:(repState.settings.postes[0] || {}).id || 'preparateur', heures:'', active:true, paid:false }); repSave(); repRenderPeople(); repRecalc(); }
 function removePerson(id) { repState.people = repState.people.filter(p => p.id !== id); repSave(); repRenderPeople(); repRecalc(); }
 function repResetAmounts() {
-    repLabs().forEach(l => { const gain = Math.round(estimateGains(l, projActuOf(l)).acquired * 100) / 100; repState.challenges[l.name] = { included: gain > 0, amount: gain }; });
+    repLabs().forEach(l => { const gain = Math.round(estimateGains(l).acquired * 100) / 100; repState.challenges[l.name] = { included: gain > 0, amount: gain }; });
     repSave(); repRefresh();
 }
 function repWeights() {
@@ -1381,31 +1383,28 @@ function tierNote(t) {
     return '🎯 ' + parts.join(' · ');
 }
 // Gains acquis (réalisé actuel) et estimés (projection de fin de période).
-function estimateGains(lab, projActu) {
+// Gains accumulés au moment de la consultation : 0 tant que l'objectif (ou le 1er palier) n'est pas atteint.
+function estimateGains(lab) {
     const tiers = ((lab.payout || {}).tiers || []).filter(t => t.seuil > 0).sort((a, b) => a.seuil - b.seuil);
     const threshold = tiers.length ? tiers[0].seuil : (lab.obj > 0 ? lab.obj : 0);
     const sumProd = (lab.products || []).reduce((a, pr) => a + ((pr.qty || 0) * (pr.amount || 0)), 0);
     const primes = n => tiers.reduce((a, t) => a + (n >= t.seuil ? (t.prime || 0) : 0), 0);
-    const achieved = n => threshold > 0 && n >= threshold;
-    const base = n => {
-        if (!achieved(n)) return 0;
-        if (sumProd > 0) return lab.actu > 0 ? sumProd * (n / lab.actu) : sumProd;   // barème produits (mis à l'échelle en projection)
-        return n * 1;                                                                // défaut : 1 €/boîte
-    };
-    const gains = n => base(n) + primes(n);
+    const achievedNow = threshold > 0 && lab.actu >= threshold;
+    let base = 0;
+    if (achievedNow) base = sumProd > 0 ? sumProd : lab.actu * 1;   // barème produits sinon 1 €/boîte
+    const acquired = achievedNow ? base + primes(lab.actu) : 0;
     // Contexte paliers pour l'affichage (stepper)
     let current = null, next = null;
     tiers.forEach(t => { if (lab.actu >= t.seuil) current = t; else if (!next) next = t; });
     return {
-        acquired: gains(lab.actu),
-        projected: gains(projActu),
-        achievedNow: achieved(lab.actu),
+        acquired,
+        achievedNow,
         threshold,
         missing: Math.max(0, threshold - lab.actu),
         unlock: threshold > 0 ? ((sumProd > 0 ? sumProd : threshold) + primes(threshold)) : 0,
         usedBareme: sumProd > 0,
         tiers, current, next, remaining: next ? next.seuil - lab.actu : 0,
-        primesNow: primes(lab.actu)
+        primesNow: achievedNow ? primes(lab.actu) : 0
     };
 }
 function projActuOf(lab) { const s = computeStats(lab); return s.projected != null ? s.projected : lab.actu; }
@@ -1507,7 +1506,7 @@ function buildCardPage(pageLabs, mainTitle, period, pageNo, totalPages) {
         const dl = daysLeft(lab.end);
         const dayChip = dl == null ? '' : (dl < 0 ? `<span class="chip-p exp">Expiré</span>` : dl === 0 ? `<span class="chip-p soon">Dernier jour</span>` : dl <= 7 ? `<span class="chip-p soon">J-${dl}</span>` : `<span class="chip-p">J-${dl}</span>`);
         const projActu = s.projected != null ? s.projected : lab.actu;
-        const g2 = estimateGains(lab, projActu);
+        const g2 = estimateGains(lab);
         let payHTML = '';
         const tierHTML = g2.tiers.length ? `<div class="tier-block">
                     <div class="tier-segs">${g2.tiers.map(x => `<div class="seg" style="${lab.actu >= x.seuil ? 'background:' + v.color : ''}"></div>`).join('')}</div>
@@ -1521,7 +1520,6 @@ function buildCardPage(pageLabs, mainTitle, period, pageNo, totalPages) {
                 : `<div class="pay-min ko">${g2.tiers.length ? `Palier ${g2.threshold}` : `Objectif ${g2.threshold}`} non atteint — manque ${g2.missing} → débloque ≈ ${fmtEur(g2.unlock)}</div>`;
             payHTML = `<div class="pay-block">
                     <div class="pay-amt">💶 ${g2.acquired > 0 ? fmtEur(g2.acquired) : '—'} acquis${g2.acquired > 0 && !g2.primesNow ? modeTag : ''}</div>
-                    <div class="pay-proj">≈ ${fmtEur(g2.projected)} estimés en fin de période</div>
                     ${condLine}
                 </div>${tierHTML}`;
         } else {
@@ -1593,7 +1591,7 @@ function buildSummaryPage(labs, mainTitle, period, pageNo, totalPages) {
         { n:`${k.avg}%`, l:'Complétion moyenne', c: k.avg>=75?'#059669':(k.avg>=50?'#d97706':'#dc2626') }
     ];
     tiles.push(k.hasPayout
-        ? { n:fmtEur(k.totalProj), l:'Gains estimés (fin)', c:'#047857' }
+        ? { n:fmtEur(k.totalAcq), l:'Gains acquis', c:'#047857' }
         : (prevSnapshot
             ? { n:`${k.delta>=0?'+':''}${k.delta}`, l:`Depuis le ${formatDate(prevSnapshot.date)}`, c: k.delta>0?'#059669':'var(--rmut)' }
             : { n:k.behind, l:'En retard sur le rythme', c: k.behind?'#d97706':'var(--ink)' }));
@@ -1610,7 +1608,7 @@ function buildSummaryPage(labs, mainTitle, period, pageNo, totalPages) {
             <div class="sub">${period ? 'Période ' + period + '  ·  ' : ''}Édité le ${new Date().toLocaleDateString('fr-FR')}</div>
         </div>
         <div class="kpi-band">${tilesHTML}</div>
-        ${k.hasPayout ? `<div class="gains-line">💶 Gains acquis à ce jour : <b>${fmtEur(k.totalAcq)}</b> &nbsp;·&nbsp; estimés en fin de période (au rythme actuel) : <b>${fmtEur(k.totalProj)}</b></div>` : ''}
+        ${k.hasPayout ? `<div class="gains-line">💶 Gains acquis à ce jour : <b>${fmtEur(k.totalAcq)}</b> — comptés uniquement sur les objectifs / paliers déjà atteints.</div>` : ''}
         ${podium.length ? `<div class="sec-title">Podium</div><div class="podium2">${podiumHTML}</div>` : ''}
         ${watch}
         <div class="sec-title">Classement détaillé</div>
@@ -1642,9 +1640,9 @@ function kpiValues(labs) {
     const avg = withObj ? Math.round(sumCapped / withObj) : 0;
     let delta = 0;
     if (prevSnapshot) labs.forEach(l => { const m = prevSnapshot.labs.find(x => x.lab === l.name); if (m) delta += (l.actu - m.actu); });
-    let totalAcq = 0, totalProj = 0, hasPayout = false;
-    labs.forEach(l => { const g = estimateGains(l, projActuOf(l)); if (g.threshold > 0 || g.tiers.length) { hasPayout = true; totalAcq += g.acquired; totalProj += g.projected; } });
-    return { total:labs.length, achieved, withObj, avg, avgColor: avg>=75?'var(--success)':(avg>=50?'var(--warning)':'var(--danger)'), endingSoon, expired, behind, delta, totalAcq, totalProj, hasPayout };
+    let totalAcq = 0, hasPayout = false;
+    labs.forEach(l => { const g = estimateGains(l); if (g.threshold > 0 || g.tiers.length) { hasPayout = true; totalAcq += g.acquired; } });
+    return { total:labs.length, achieved, withObj, avg, avgColor: avg>=75?'var(--success)':(avg>=50?'var(--warning)':'var(--danger)'), endingSoon, expired, behind, delta, totalAcq, hasPayout };
 }
 
 function renderKPIs(labs) {
@@ -1658,7 +1656,7 @@ function renderKPIs(labs) {
     ];
     if (prevSnapshot) items.push({ num:`${k.delta>=0?'+':''}${k.delta}`, lbl:`Depuis le ${formatDate(prevSnapshot.date)}`, color:k.delta>0?'var(--success)':'var(--secondary)' });
     else items.push({ num:k.expired, lbl:'Expirés', color:k.expired?'var(--danger)':'var(--secondary)' });
-    if (k.hasPayout) items.push({ num:fmtEur(k.totalProj), lbl:'Gains estimés', color:'var(--success)' });
+    if (k.hasPayout) items.push({ num:fmtEur(k.totalAcq), lbl:'Gains acquis', color:'var(--success)' });
     document.getElementById('kpi-bar').innerHTML = items.map(i => `<div class="kpi"><div class="num" style="color:${i.color}">${i.num}</div><div class="lbl">${i.lbl}</div></div>`).join('');
 }
 
@@ -1784,15 +1782,15 @@ function loadState() { try { const r = localStorage.getItem(STORAGE_KEY); return
 /* ---------- Import / export ---------- */
 function exportToJSON() { download(new Blob([JSON.stringify(collectData(), null, 2)], { type:"application/json" }), `challenges_${new Date().toISOString().slice(0,10)}.json`); }
 function exportToCSV() {
-    const rows = [["Laboratoire","Gamme","Debut","Fin","Objectif","Realise","Progression_%","Projection","Base_projection","Jours_restants","Statut","Seuil_gains","Atteint","Mode_gains","Gains_acquis_EUR","Gains_estimes_EUR","Paliers","Produits_bareme"]];
+    const rows = [["Laboratoire","Gamme","Debut","Fin","Objectif","Realise","Progression_%","Projection","Base_projection","Jours_restants","Statut","Seuil_gains","Atteint","Mode_gains","Gains_acquis_EUR","Paliers","Produits_bareme"]];
     collectLabs().forEach(l => { const lab = labModel(l), s = computeStats(lab);
-        const g = estimateGains(lab, s.projected != null ? s.projected : lab.actu);
+        const g = estimateGains(lab);
         const prods = (lab.products || []).map(p => `${p.name}: ${p.amount}€${p.qty ? ' x' + p.qty : ''}`).join(' | ');
         const paliers = g.tiers.map(t => `${t.seuil}${t.prime ? ' (+' + t.prime + '€)' : ''}`).join(' | ');
         const mode = g.usedBareme ? 'bareme produits' : '1 EUR/boite';
         rows.push([l.lab, l.gamme, l.start, l.end, lab.obj, lab.actu, s.hasObj?Math.round(s.percent):'', s.projected ?? '', s.basis, s.dleft ?? '', s.status,
                    g.threshold || '', g.threshold ? (g.achievedNow ? 'oui' : 'non') : '', mode,
-                   Math.round(g.acquired*100)/100, Math.round(g.projected*100)/100, paliers, prods]); });
+                   Math.round(g.acquired*100)/100, paliers, prods]); });
     const csv = rows.map(r => r.map(c => {
         let s = String(c);
         if (/^[=+@\t\r]/.test(s) || (/^-/.test(s) && isNaN(Number(s)))) s = "'" + s;   // anti-injection de formule
