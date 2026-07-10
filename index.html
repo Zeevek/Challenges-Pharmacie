@@ -76,7 +76,6 @@
         .kvrow .t-seuil, .kvrow .t-prime, .kvrow .p-amt, .kvrow .p-qty, .kvrow .b-from, .kvrow .b-rate { max-width:130px; }
         .kvrow button { border:1px solid #cbd5e1; background:#f8fafc; border-radius:6px; padding:8px 10px; cursor:pointer; color:var(--danger); font-size:12px; }
         .subpanel .addrow { margin-top:8px; font-size:12px; padding:6px 10px; border:1px solid var(--border); background:#fff; border-radius:6px; cursor:pointer; }
-        .pay-type { width:100%; padding:8px; margin-top:4px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; }
         .monthly .hint { font-size:11px; color:var(--text-muted); margin:6px 0; }
         .months-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(95px,1fr)); gap:8px; }
         .month-cell label { margin:0; padding:0; font-size:10px; color:var(--text-muted); display:flex; justify-content:space-between; }
@@ -151,6 +150,13 @@
         .logo-provided { font-size:11px; padding:5px 8px; border:1px solid var(--border); background:#f8fafc; border-radius:6px; cursor:pointer; }
         .rep-inactive { opacity:.45; }
         .rep-inactive .share { color:var(--text-muted) !important; }
+        .plan-src { border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; background:#fff; }
+        .plan-src-head { font-weight:700; font-size:13px; display:flex; justify-content:space-between; gap:10px; }
+        .plan-src-amt { color:var(--text-muted); font-weight:600; }
+        .plan-src ul { margin:6px 0 0; padding-left:20px; font-size:13px; }
+        .plan-src li { margin-bottom:2px; }
+        .plan-split { color:#b45309; font-size:11px; }
+        .plan-rest { font-size:12px; color:#7c3aed; margin-top:6px; font-weight:600; }
 
         @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
         @page { size: A4 portrait; margin: 0; }
@@ -413,11 +419,10 @@
                 <button type="button" class="addrow" onclick="repResetAmounts()">↻ Réinitialiser aux gains calculés</button>
             </div>
             <div class="rep-pool">Montant total à répartir : <b id="rep-pool-val">0 €</b></div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
-                <label style="margin:0">Montant à déduire (réserve / report)</label>
-                <input type="number" min="0" step="1" id="rep-report" oninput="repReport(this.value)" style="width:110px"> €
-                <span class="hint" style="margin:0">Retiré du pool avant répartition. Les parts sont versées en <b>euros entiers</b> ; le reliquat se reporte.</span>
+            <div id="rep-carry-row" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+                <label class="summary-toggle" style="margin:0"><input type="checkbox" id="rep-use-carry" onchange="repUseCarry(this.checked)" style="width:auto;margin:0"> <span id="rep-carry-label">Utiliser le report précédent</span></label>
             </div>
+            <div class="hint" style="margin-top:6px">Les parts sont arrondies <b>à l'euro inférieur</b> ; le reliquat se calcule automatiquement et se reporte à la prochaine dispatch.</div>
 
             <div class="rep-section-title">Équipe &amp; dispatch</div>
             <div class="rep-table-wrap"><table class="rep-table"><thead><tr>
@@ -428,12 +433,15 @@
                 <button type="button" class="addrow" onclick="copyPlan()">📋 Copier le plan de versement</button>
             </div>
 
+            <div class="rep-section-title">Plan de versement conseillé</div>
+            <div id="rep-plan"></div>
+
             <div class="rep-totals">
                 <div><span class="lbl">Montant à répartir</span><b id="rep-total-pool">0 €</b></div>
                 <div><span class="lbl">Distribué (€ entiers)</span><b id="rep-total-verser">0 €</b></div>
                 <div><span class="lbl">Déjà versé</span><b id="rep-total-verse" style="color:#047857">0 €</b></div>
                 <div><span class="lbl">Reste à verser</span><b id="rep-total-reste" style="color:#b45309">0 €</b></div>
-                <div><span class="lbl">À reporter</span><b id="rep-total-report" style="color:#7c3aed">0 €</b></div>
+                <div><span class="lbl">À reporter</span><b id="rep-total-report" style="color:#7c3aed">0 €</b><span class="lbl" id="rep-report-lab" style="display:block;margin-top:2px;text-transform:none"></span></div>
             </div>
         </div>
 
@@ -530,22 +538,9 @@ function readBlock(g) {
     const products = [...g.querySelectorAll('.prod-rows .kvrow')]
         .map(r => { const qe = r.querySelector('.p-qty'); return { name:r.querySelector('.p-name').value.trim(), amount:parseFloat(r.querySelector('.p-amt').value)||0, qty: qe ? (parseFloat(qe.value)||0) : 0 }; })
         .filter(p => p.name);
-    const payType = g.querySelector('.pay-type').value;
-    let payout = { type:payType };
-    if (payType === 'tiers') {
-        payout.tiers = [...g.querySelectorAll('.tier-rows .kvrow')]
-            .map(r => ({ seuil:parseFloat(r.querySelector('.t-seuil').value)||0, prime:parseFloat(r.querySelector('.t-prime').value)||0 }))
-            .filter(t => t.seuil > 0);
-    } else if (payType === 'perbox') {
-        payout.min = parseFloat(g.querySelector('.pay-min').value) || 0;
-        payout.level = g.querySelector('.pay-level').value.trim();
-        payout.brackets = [...g.querySelectorAll('.bracket-rows .kvrow')]
-            .map(r => ({ from:parseFloat(r.querySelector('.b-from').value)||1, rate:parseFloat(r.querySelector('.b-rate').value)||0 }))
-            .filter(b => b.rate > 0);
-    } else if (payType === 'perproduct') {
-        payout.min = parseFloat(g.querySelector('.pp-min').value) || 0;
-        payout.level = g.querySelector('.pp-level').value.trim();
-    }
+    const payout = { type:'tiers', tiers:[...g.querySelectorAll('.tier-rows .kvrow')]
+        .map(r => ({ seuil:parseFloat(r.querySelector('.t-seuil').value)||0, prime:parseFloat(r.querySelector('.t-prime').value)||0 }))
+        .filter(t => t.seuil > 0) };
     return {
         lab:g.querySelector('.in-name').value, gamme:g.querySelector('.in-gamme').value,
         obj:g.querySelector('.in-obj').value, actuel:g.querySelector('.in-actu').value,
@@ -602,45 +597,16 @@ function createLabInputHTML(data = {}) {
                 <div class="monthly-total"></div>
             </details>
 
-            <details class="subpanel" ${(data.payout && data.payout.type && data.payout.type !== 'none') || (data.tiers && data.tiers.length) ? 'open' : ''}>
-                <summary>💶 Rémunération du challenge<i class="info-i" title="« € par boîte » : tarif marginal par tranches, minimum optionnel conditionnant le paiement, booster possible. « Par produit » : boîtes vendues × barème. « Paliers » : primes cumulatives par seuil.">i</i></summary>
-                <label>Type de rémunération</label>
-                <select class="pay-type" onchange="onPayType(this)">
-                    <option value="none">Aucune</option>
-                    <option value="tiers">Prime par paliers (cumulatif)</option>
-                    <option value="perbox">€ par boîte (booster / minimum trimestriel)</option>
-                    <option value="perproduct">Par produit (quantités × barème)</option>
-                </select>
-
-                <div class="pay-perproduct" style="display:none">
-                    <div class="hint">Rémunération = somme (boîtes vendues × montant) des produits, comptée si le minimum trimestriel est atteint. Sans détail par produit : <b>1 €/boîte vendue</b>. Renseignez les ventes par produit dans « 🧾 Produits challengés » ci-dessous.</div>
-                    <div style="display:flex;gap:10px">
-                        <div style="flex:1"><label>Minimum trimestriel (boîtes)</label><input type="number" min="0" class="pp-min" placeholder="0 = pas de minimum"></div>
-                        <div style="flex:1"><label>Niveau (info)</label><input type="text" class="pp-level" placeholder="ex : Niveau Or"></div>
-                    </div>
-                </div>
-
-                <div class="pay-tiers" style="display:none">
-                    <div class="hint">Seuil d'unités + prime gagnée ; le cumul des paliers atteints s'affiche.</div>
-                    <div class="tier-rows"></div>
-                    <button type="button" class="addrow" onclick="addTierRow(this)">+ palier</button>
-                </div>
-
-                <div class="pay-perbox" style="display:none">
-                    <div style="display:flex;gap:10px">
-                        <div style="flex:1"><label>Minimum (boîtes)</label><input type="number" min="0" class="pay-min" placeholder="0 = pas de minimum"></div>
-                        <div style="flex:1"><label>Niveau (info)</label><input type="text" class="pay-level" placeholder="ex : Palier Or"></div>
-                    </div>
-                    <div class="hint">Tarif marginal par tranche (€/boîte). 1re tranche « à partir de 1 » ; un booster est une tranche supplémentaire à tarif majoré (ex. 2 € puis 2,50 € à partir de la 201e boîte).</div>
-                    <div class="bracket-rows"></div>
-                    <button type="button" class="addrow" onclick="addBracketRow(this)">+ tranche</button>
-                    <div class="hint">⚠️ Si un minimum est défini et n'est pas atteint, la rémunération est nulle.</div>
-                </div>
+            <details class="subpanel" ${(resolvePayout(data).tiers || []).length ? 'open' : ''}>
+                <summary>💶 Rémunération — paliers (optionnel)<i class="info-i" title="Règle par défaut : 1 €/boîte si l'objectif est atteint (ou le 1er palier si des paliers sont définis), sinon 0. Les primes des paliers atteints s'ajoutent. Si des quantités sont saisies dans les produits challengés, le barème remplace le 1 €/boîte.">i</i></summary>
+                <div class="hint">Règle par défaut : <b>1 €/boîte si l'objectif est atteint</b> (ou le 1<sup>er</sup> palier ci-dessous s'il est défini), sinon <b>0</b>. Les primes des paliers atteints s'ajoutent (cumulatif).</div>
+                <div class="tier-rows"></div>
+                <button type="button" class="addrow" onclick="addTierRow(this)">+ palier</button>
             </details>
 
             <details class="subpanel" ${(data.products && data.products.length) ? 'open' : ''}>
                 <summary>🧾 Produits challengés (barème)</summary>
-                <div class="hint">Produits ou gammes concernés et leur montant. Affichés dans un encart sur la fiche.</div>
+                <div class="hint">Si les <b>boîtes vendues</b> sont renseignées et l'objectif/palier atteint, la rémunération devient la somme (boîtes × montant) au lieu de 1 €/boîte. Sans quantités : règle par défaut.</div>
                 <div class="prod-rows">${(data.products || []).map(prodRowHTML).join('')}</div>
                 <button type="button" class="addrow" onclick="addProdRow(this)">+ produit</button>
             </details>
@@ -918,9 +884,14 @@ function renameLib(id, name) { const lib = loadLibrary(); const it = lib.find(x 
 function deleteLib(id) { saveLibrary(loadLibrary().filter(x => x.id !== id)); refreshLibrarySelects(); renderStorage(); openLibrary(); }
 
 /* ---------- Aide & journal des nouveautés ---------- */
-const APP_VERSION = '3.0';
+const APP_VERSION = '3.1';
 const SEEN_KEY = 'pharma_seen_version';
 const CHANGELOG = [
+    { v:'3.1', d:'juillet 2026', items:[
+        'Rémunération simplifiée : règle unique automatique — 1 €/boîte si l\'objectif (ou le 1er palier défini) est atteint, sinon 0 ; primes de paliers cumulées ; barème produits (boîtes × montant) prioritaire quand les quantités sont renseignées.',
+        'Répartition : arrondi automatique à l\'euro inférieur, report calculé automatiquement avec indication du laboratoire où reste le solde, mémorisation du report et case « Utiliser le report » à la dispatch suivante, plan de versement conseillé affiché (virements regroupés par laboratoire).',
+        'Période et progression calculées uniquement sur les challenges actifs (les instantanés d\'une période précédente sont ignorés).',
+        'Export PDF : capture consolidée (correctif du cadre décalé).' ] },
     { v:'3.0', d:'juillet 2026', items:[
         'Correction de l\'impression navigateur (Chrome, Firefox, Brave…) : pages du rapport alignées et à taille réelle grâce à une mise en page d\'impression dédiée (format A4 sans marges, centrage et zoom mobile neutralisés, sauts de page propres). L\'impression de la Répartition garde ses marges de feuille.',
         'Révision du code : règles d\'impression consolidées (doublons supprimés), styles inutilisés retirés.' ] },
@@ -979,12 +950,12 @@ function openHelp() {
         S('1. Saisir un challenge', 'Cliquez sur <span class="k">Ajouter un labo</span>, puis renseignez le laboratoire, la cible, les dates, l\'objectif et le réalisé. Tout s\'enregistre automatiquement dans ce navigateur.') +
         S('2. Saisie mensuelle', 'Votre logiciel métier donne les ventes par mois : ouvrez <span class="k">Saisie mensuelle</span>, cochez la case, et reportez chaque mois. Le total et la projection se calculent seuls.') +
         S('3. Mise à jour du mercredi', 'Le bandeau du haut indique la dernière saisie et vous alerte au-delà de 7 jours. Le bouton <span class="k">+1 / +5</span> incrémente le réalisé en un clic au comptoir.') +
-        S('4. Rémunération', 'Dans <span class="k">Rémunération du challenge</span>, « € par boîte » permet un tarif marginal par tranches avec un <span class="k">minimum</span> optionnel (sans lui, rémunération nulle) et un booster (tranche à tarif majoré). « <span class="k">Par produit</span> » additionne (boîtes vendues × montant) de chaque produit, avec 1 €/boîte par défaut si le détail n\'est pas saisi. « Prime par paliers » couvre les bonus cumulatifs (type Cerave).') +
-        S('5. Gains estimés', 'Chaque fiche affiche le gain <span class="k">acquis</span> (réalisé actuel) et <span class="k">estimé</span> (au rythme projeté). Sous le minimum, l\'outil indique combien de boîtes manquent et ce que leur franchissement débloque. Le total figure sur la couverture du PDF.') +
+        S('4. Rémunération', 'Règle automatique : <span class="k">1 €/boîte si l\'objectif est atteint</span> (ou le 1<sup>er</sup> palier si des paliers sont définis), sinon 0. Les <span class="k">primes des paliers</span> atteints s\'ajoutent (cumulatif, type Cerave). Si les <span class="k">boîtes vendues</span> sont renseignées dans « Produits challengés », le barème (boîtes × montant) remplace le 1 €/boîte.') +
+        S('5. Gains estimés', 'Chaque fiche affiche le gain <span class="k">acquis</span> (réalisé actuel) et <span class="k">estimé</span> (au rythme projeté). Tant que l\'objectif (ou le 1<sup>er</sup> palier) n\'est pas atteint, l\'outil indique combien de boîtes manquent et ce que leur franchissement débloque. Le total figure sur la couverture du PDF.') +
         S('6. Logos', 'Importez une image, glissez-la sur la vignette ou collez-la (Ctrl+V). Elle est stockée localement (fonctionne hors-ligne) et réutilisable via la <span class="k">Bibliothèque</span>.') +
         S('7. Rapport PDF', 'Le bouton <span class="k">Télécharger le PDF</span> génère le rapport (couverture + fiches). Hors-ligne, il bascule automatiquement sur l\'impression du navigateur (Enregistrer en PDF).') +
         S('8. Sauvegarde & transfert', 'Utilisez <span class="k">Sauvegarder (.json)</span> puis <span class="k">Charger</span> pour transférer vos données (logos, historique et répartition inclus) vers un autre poste. L\'<span class="k">export CSV</span> ouvre les chiffres dans Excel.') +
-        S('9. Répartition des gains', 'L\'onglet <span class="k">💰 Répartition</span> (en haut) permet de distribuer les gains à l\'équipe : cochez les challenges concernés, ajoutez les personnes (nom, email, poste), et l\'outil calcule la part de chacun selon la <span class="k">pondération par poste</span> réglée dans « Paramètres » (et, en option, le taux horaire). Les parts sont versées en <span class="k">euros entiers</span> (un seul virement rond par personne) ; un champ « montant à déduire / report » met de côté une réserve et le reliquat s\'affiche « à reporter ». Réglez les <span class="k">postes et coefficients</span> (ajout/suppression possible) dans « Paramètres ». Cochez « Payé » pour suivre le déjà versé et le reste. Boutons « Copier le plan de versement », Imprimer et CSV.') +
+        S('9. Répartition des gains', 'L\'onglet <span class="k">💰 Répartition</span> (en haut) permet de distribuer les gains à l\'équipe : cochez les challenges concernés, ajoutez les personnes (nom, email, poste), et l\'outil calcule la part de chacun selon la <span class="k">pondération par poste</span> réglée dans « Paramètres » (et, en option, le taux horaire). Les parts sont <span class="k">arrondies à l\'euro inférieur</span> ; le reliquat se calcule automatiquement, s\'affiche « à reporter » avec le laboratoire où reste le solde, et peut être mémorisé puis réutilisé à la dispatch suivante (case « Utiliser le report »). Le <span class="k">plan de versement conseillé</span> regroupe les virements par laboratoire pour limiter les plateformes. Réglez les <span class="k">postes et coefficients</span> (ajout/suppression possible) dans « Paramètres ». Cochez « Payé » pour suivre le déjà versé et le reste. Boutons « Copier le plan de versement », Imprimer et CSV.') +
         `<button class="main-btn btn-add" style="margin-top:14px;" onclick="closeModal('help-modal')">Fermer</button>`;
     document.getElementById('help-modal').classList.add('open');
 }
@@ -1011,7 +982,7 @@ const DEFAULT_POSTES = [
     { id:'rayonniste', label:'Rayonniste', coef:1 },
     { id:'etudiant', label:'Étudiant', coef:0.8 }
 ];
-const DEFAULT_REP = { settings:{ postes:JSON.parse(JSON.stringify(DEFAULT_POSTES)), useHours:false, baseHours:35 }, challenges:{}, customChallenges:[], people:[], report:0 };
+const DEFAULT_REP = { settings:{ postes:JSON.parse(JSON.stringify(DEFAULT_POSTES)), useHours:false, baseHours:35 }, challenges:{}, customChallenges:[], people:[], carry:{ amount:0, lab:'' }, useCarry:false };
 let repState = null;
 function repLoad() {
     let s;
@@ -1024,7 +995,8 @@ function repLoad() {
         const coef = s.settings.coef || {};
         s.settings.postes = DEFAULT_POSTES.map(p => ({ id:p.id, label:p.label, coef: coef[p.id] != null ? coef[p.id] : p.coef }));
     }
-    if (s.report == null) s.report = 0;
+    if (!s.carry || typeof s.carry !== 'object') s.carry = { amount: (parseFloat(s.report) || 0), lab:'' };
+    if (s.useCarry == null) s.useCarry = false;
     if (!Array.isArray(s.customChallenges)) s.customChallenges = [];
     if (!s.challenges) s.challenges = {};
     if (!Array.isArray(s.people)) s.people = [];
@@ -1073,7 +1045,15 @@ function repRefresh() {
     repRenderPostes();
     document.getElementById('rep-use-hours').checked = !!repState.settings.useHours;
     const bh = document.getElementById('rep-base-hours'); if (bh) bh.value = repState.settings.baseHours != null ? repState.settings.baseHours : 35;
-    const rr = document.getElementById('rep-report'); if (rr) rr.value = repState.report != null ? repState.report : 0;
+    const cr = document.getElementById('rep-carry-row');
+    if (cr) {
+        const has = repState.carry && repState.carry.amount > 0.004;
+        cr.style.display = has ? 'flex' : 'none';
+        if (has) {
+            document.getElementById('rep-use-carry').checked = !!repState.useCarry;
+            document.getElementById('rep-carry-label').innerHTML = `Utiliser le report précédent : <b>+${fmtEur(repState.carry.amount)}</b>${repState.carry.lab ? ' (chez ' + esc(repState.carry.lab) + ')' : ''}`;
+        }
+    }
     repRenderPeople();
     repRecalc();
     repSave();
@@ -1123,7 +1103,7 @@ function removePoste(id) {
 }
 function repUseHours(b) { repState.settings.useHours = b; repRecalc(); repSave(); }
 function repBaseHours(v) { repState.settings.baseHours = parseFloat(v) || 35; repRenderPeople(); repRecalc(); repSave(); }
-function repReport(v) { repState.report = Math.max(0, parseFloat(v) || 0); repRecalc(); repSave(); }
+function repUseCarry(b) { repState.useCarry = !!b; repRecalc(); repSave(); }
 function addPerson() { repState.people.push({ id:'P' + Date.now() + Math.floor(Math.random()*1000), nom:'', prenom:'', email:'', poste:(repState.settings.postes[0] || {}).id || 'preparateur', heures:'', active:true, paid:false }); repSave(); repRenderPeople(); repRecalc(); }
 function removePerson(id) { repState.people = repState.people.filter(p => p.id !== id); repSave(); repRenderPeople(); repRecalc(); }
 function repResetAmounts() {
@@ -1139,33 +1119,48 @@ function repWeights() {
     });
     return { w, sum };
 }
-function repPool() {
-    let pool = 0;
-    repLabs().forEach(l => { const c = repState.challenges[l.name]; if (c && c.included) pool += (parseFloat(c.amount) || 0); });
-    (repState.customChallenges || []).forEach(c => { if (c.included) pool += (parseFloat(c.amount) || 0); });
-    return pool;
-}
-// Répartition en euros entiers (méthode du plus fort reste) : un seul versement rond par personne.
-function largestRemainder(vals, target) {
-    const floors = vals.map(v => Math.floor(v));
-    let rem = target - floors.reduce((a, b) => a + b, 0);
-    const order = vals.map((v, i) => ({ i, f: v - Math.floor(v) })).sort((a, b) => b.f - a.f);
-    const out = floors.slice();
-    for (let k = 0; k < order.length && rem > 0; k++) { out[order[k].i]++; rem--; }
-    return out;
+const round2 = n => Math.round(n * 100) / 100;
+// Sources d'argent de la dispatch : challenges cochés + labos manuels + report précédent (si coché).
+function repSources() {
+    const src = [];
+    repLabs().forEach(l => { const c = repState.challenges[l.name]; if (c && c.included && (parseFloat(c.amount) || 0) > 0) src.push({ label:l.name, amount:parseFloat(c.amount) }); });
+    (repState.customChallenges || []).forEach(c => { if (c.included && (parseFloat(c.amount) || 0) > 0) src.push({ label:c.name || 'Labo (manuel)', amount:parseFloat(c.amount) }); });
+    if (repState.useCarry && repState.carry && repState.carry.amount > 0) src.push({ label:`Report précédent${repState.carry.lab ? ' (' + repState.carry.lab + ')' : ''}`, amount:repState.carry.amount, isCarry:true });
+    return src;
 }
 function repCompute() {
-    const pool = repPool();
-    const report = Math.max(0, parseFloat(repState.report) || 0);
-    const distribuable = Math.max(0, pool - report);
-    const target = Math.floor(distribuable + 1e-9);                 // euros entiers distribuables
+    const sources = repSources();
+    const pool = round2(sources.reduce((a, s) => a + s.amount, 0));
     const { w, sum } = repWeights();
     const actives = repState.people.filter(p => p.active !== false);
-    const raw = actives.map(p => (sum > 0 ? distribuable * w[p.id] / sum : 0));
-    const rounded = (sum > 0 && target > 0) ? largestRemainder(raw, target) : actives.map(() => 0);
-    const aVerser = {}; actives.forEach((p, i) => { aVerser[p.id] = rounded[i]; });
-    let distributed = 0; actives.forEach(p => { distributed += aVerser[p.id]; });
-    return { pool, report, distribuable, distributed, aVerser, aReporter: Math.max(0, pool - distributed) };
+    // Arrondi À L'INFÉRIEUR : chaque part = plancher de la part idéale ; le reliquat se reporte automatiquement.
+    const aVerser = {};
+    actives.forEach(p => { aVerser[p.id] = sum > 0 ? Math.floor(pool * w[p.id] / sum + 1e-9) : 0; });
+    const distributed = actives.reduce((a, p) => a + aVerser[p.id], 0);
+    const aReporter = round2(Math.max(0, pool - distributed));
+    // Allocation des versements aux sources (limiter le nombre de plateformes par personne) :
+    // meilleur ajustement décroissant — chaque versement est servi si possible par UNE seule source.
+    const rem = sources.map(s => ({ label:s.label, amount:s.amount, left:s.amount, lines:[] }));
+    const pays = actives.map(p => ({ id:p.id, name:(((p.prenom || '') + ' ' + (p.nom || '')).trim()) || '(sans nom)', amt:aVerser[p.id] }))
+                        .filter(x => x.amt > 0).sort((a, b) => b.amt - a.amt);
+    pays.forEach(pay => {
+        let need = pay.amt;
+        let cand = -1;
+        rem.forEach((s, i) => { if (s.left >= need - 1e-9 && (cand < 0 || s.left < rem[cand].left)) cand = i; });
+        if (cand >= 0) { rem[cand].lines.push({ name:pay.name, amount:need }); rem[cand].left = round2(rem[cand].left - need); }
+        else {
+            const order = [...rem.keys()].sort((a, b) => rem[b].left - rem[a].left);
+            for (const i of order) {
+                if (need <= 0) break;
+                const take = Math.min(Math.floor(rem[i].left + 1e-9), need);
+                if (take > 0) { rem[i].lines.push({ name:pay.name, amount:take, split:true }); rem[i].left = round2(rem[i].left - take); need -= take; }
+            }
+            if (need > 0) { let mi = 0; rem.forEach((s, i) => { if (s.left > rem[mi].left) mi = i; }); rem[mi].lines.push({ name:pay.name, amount:need, split:true }); rem[mi].left = round2(rem[mi].left - need); }
+        }
+    });
+    const leftovers = rem.filter(s => s.left > 0.004).sort((a, b) => b.left - a.left);
+    const reportLabName = leftovers.length ? leftovers[0].label : '';
+    return { pool, distributed, aVerser, aReporter, sources:rem, leftovers, reportLabName };
 }
 function repRecalc() {
     const c = repCompute();
@@ -1178,14 +1173,41 @@ function repRecalc() {
     set('rep-total-verse', fmtEur(verse));
     set('rep-total-reste', fmtEur(c.distributed - verse));
     set('rep-total-report', fmtEur(c.aReporter));
+    const rl = document.getElementById('rep-report-lab');
+    if (rl) rl.textContent = c.aReporter > 0.004 && c.reportLabName ? `chez ${c.reportLabName}` : '';
+    renderPlan(c);
+}
+function renderPlan(c) {
+    const box = document.getElementById('rep-plan'); if (!box) return;
+    const hasPay = c.sources.some(s => s.lines.length);
+    if (!hasPay) { box.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin:0">Ajoutez des challenges cochés et des personnes participantes pour obtenir un plan de versement.</p>'; return; }
+    const parts = c.sources.filter(s => s.lines.length || s.left > 0.004).map(s => {
+        const lines = s.lines.map(l => `<li>${esc(l.name)} — <b>${fmtEur(l.amount)}</b>${l.split ? ' <span class="plan-split">(complément)</span>' : ''}</li>`).join('');
+        const rest = s.left > 0.004 ? `<div class="plan-rest">Reste ${fmtEur(s.left)} → à reporter chez <b>${esc(s.label)}</b></div>` : '';
+        return `<div class="plan-src"><div class="plan-src-head">🏦 ${esc(s.label)} <span class="plan-src-amt">${fmtEur(s.amount)}</span></div>${lines ? `<ul>${lines}</ul>` : ''}${rest}</div>`;
+    }).join('');
+    const saveBtn = c.aReporter > 0.004 ? `<button type="button" class="addrow" onclick="saveCarry()">💾 Mémoriser ${fmtEur(c.aReporter)} de report pour la prochaine dispatch</button>` : '';
+    box.innerHTML = parts + saveBtn;
+}
+function saveCarry() {
+    const c = repCompute();
+    repState.carry = { amount:c.aReporter, lab:c.reportLabName || '' };
+    repState.useCarry = false;
+    repSave(); repRefresh();
+    showToast(`Report de ${fmtEur(c.aReporter)} mémorisé${c.reportLabName ? ' (chez ' + c.reportLabName + ')' : ''} — cochez « Utiliser le report » à la prochaine dispatch.`, 'OK');
 }
 function copyPlan() {
     const c = repCompute();
-    const lines = repState.people.filter(p => p.active !== false && (c.aVerser[p.id] || 0) > 0)
-        .map(p => `${((p.prenom || '') + ' ' + (p.nom || '')).trim() || '(sans nom)'} : ${c.aVerser[p.id]} €`);
-    if (!lines.length) { showToast('Aucun versement à planifier.', 'OK'); return; }
-    let txt = 'Plan de versement — ' + new Date().toLocaleDateString('fr-FR') + '\n' + lines.join('\n');
-    if (c.aReporter > 0) txt += `\nÀ reporter : ${fmtEur(c.aReporter)}`;
+    const hasPay = c.sources.some(s => s.lines.length);
+    if (!hasPay) { showToast('Aucun versement à planifier.', 'OK'); return; }
+    let txt = 'Plan de versement — ' + new Date().toLocaleDateString('fr-FR');
+    c.sources.forEach(s => {
+        if (!s.lines.length && s.left <= 0.004) return;
+        txt += `\n\n${s.label} (${fmtEur(s.amount)})`;
+        s.lines.forEach(l => { txt += `\n  - ${l.name} : ${fmtEur(l.amount)}${l.split ? ' (complément)' : ''}`; });
+        if (s.left > 0.004) txt += `\n  Reste ${fmtEur(s.left)} à reporter`;
+    });
+    if (c.aReporter > 0.004) txt += `\n\nÀ reporter au total : ${fmtEur(c.aReporter)}${c.reportLabName ? ' (chez ' + c.reportLabName + ')' : ''}`;
     const ok = () => showToast('Plan de versement copié dans le presse-papiers.', 'OK');
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, () => fallbackCopy(txt, ok));
     else fallbackCopy(txt, ok);
@@ -1204,11 +1226,11 @@ function exportRepCSV() {
     });
     rows.push([]);
     rows.push(["Montant a repartir", c.pool]);
-    rows.push(["A deduire (reserve)", c.report]);
-    rows.push(["Distribue (euros entiers)", c.distributed]);
+    rows.push(["Distribue (euros entiers, arrondi inferieur)", c.distributed]);
     rows.push(["Deja verse", verse]);
     rows.push(["Reste a verser", c.distributed - verse]);
     rows.push(["A reporter", c.aReporter]);
+    rows.push(["Report chez", c.reportLabName || '']);
     const csv = rows.map(r => r.map(cell => { let s = String(cell); if (/^[=+@\t\r]/.test(s) || (/^-/.test(s) && isNaN(Number(s)))) s = "'" + s; return `"${s.replace(/"/g,'""')}"`; }).join(';')).join('\r\n');
     download(new Blob(["\uFEFF" + csv], { type:"text/csv;charset=utf-8;" }), `repartition_${new Date().toISOString().slice(0,10)}.csv`);
 }
@@ -1325,136 +1347,73 @@ function labModel(raw) {
              payout:resolvePayout(raw), products:raw.products||[] };
 }
 function resolvePayout(raw) {
-    if (raw.payout && raw.payout.type) return raw.payout;
-    if (raw.tiers && raw.tiers.length) return { type:'tiers', tiers:raw.tiers };   // compat ancien format
-    return { type:'none' };
+    // Modèle unifié : uniquement des paliers optionnels. Les anciens types (€/boîte, par produit) migrent
+    // vers la règle par défaut (1 €/boîte si objectif/palier atteint, barème produits si quantités saisies).
+    const tiers = (raw.payout && Array.isArray(raw.payout.tiers) && raw.payout.tiers.length) ? raw.payout.tiers
+                : (Array.isArray(raw.tiers) && raw.tiers.length) ? raw.tiers : [];
+    return { type:'tiers', tiers };
 }
 
 /* ---------- Lignes éditables ---------- */
 function tierRowHTML(t = {}) {
     return `<div class="kvrow"><input type="number" min="0" class="t-seuil" placeholder="Seuil (unités)" value="${t.seuil != null ? t.seuil : ''}"><input type="number" min="0" step="0.01" class="t-prime" placeholder="Prime €" value="${t.prime != null ? t.prime : ''}"><button type="button" onclick="delRow(this)" title="Retirer">✕</button></div>`;
 }
-function bracketRowHTML(b = {}) {
-    return `<div class="kvrow"><input type="number" min="1" class="b-from" placeholder="À partir de (boîte n°)" value="${b.from != null ? b.from : ''}"><input type="number" min="0" step="0.01" class="b-rate" placeholder="€ / boîte" value="${b.rate != null ? b.rate : ''}"><button type="button" onclick="delRow(this)" title="Retirer">✕</button></div>`;
-}
 function prodRowHTML(p = {}) {
     return `<div class="kvrow"><input type="text" class="p-name" placeholder="Produit / gamme" value="${esc(p.name)}"><input type="number" min="0" step="0.01" class="p-amt" placeholder="€/boîte" value="${p.amount != null ? p.amount : ''}"><input type="number" min="0" class="p-qty" placeholder="Boîtes vendues" value="${p.qty != null ? p.qty : ''}"><button type="button" onclick="delRow(this)" title="Retirer">✕</button></div>`;
 }
 function addTierRow(btn) { btn.closest('.subpanel').querySelector('.tier-rows').insertAdjacentHTML('beforeend', tierRowHTML()); markUpdated(); updateInfographic(); }
-function addBracketRow(btn) { btn.closest('.subpanel').querySelector('.bracket-rows').insertAdjacentHTML('beforeend', bracketRowHTML()); markUpdated(); updateInfographic(); }
 function addProdRow(btn) { btn.closest('.subpanel').querySelector('.prod-rows').insertAdjacentHTML('beforeend', prodRowHTML()); markUpdated(); updateInfographic(); }
 function delRow(btn) { btn.closest('.kvrow').remove(); markUpdated(); updateInfographic(); }
 
-/* ---------- Panneau rémunération : init / bascule / preset ---------- */
+/* ---------- Panneau rémunération : init ---------- */
 function initPayout(g, payout) {
-    const type = payout.type || 'none';
-    g.querySelector('.pay-type').value = type;
     g.querySelector('.tier-rows').innerHTML = (payout.tiers || []).map(tierRowHTML).join('');
-    const brk = (payout.brackets && payout.brackets.length) ? payout.brackets : (type === 'perbox' ? [{ from:1 }] : []);
-    g.querySelector('.bracket-rows').innerHTML = brk.map(bracketRowHTML).join('');
-    g.querySelector('.pay-min').value = payout.min != null ? payout.min : '';
-    g.querySelector('.pay-level').value = payout.level || '';
-    if (type === 'perproduct') {
-        g.querySelector('.pp-min').value = payout.min != null ? payout.min : '';
-        g.querySelector('.pp-level').value = payout.level || '';
-    }
-    togglePayUI(g, type);
-}
-function togglePayUI(g, type) {
-    g.querySelector('.pay-tiers').style.display = type === 'tiers' ? 'block' : 'none';
-    g.querySelector('.pay-perbox').style.display = type === 'perbox' ? 'block' : 'none';
-    g.querySelector('.pay-perproduct').style.display = type === 'perproduct' ? 'block' : 'none';
-}
-function onPayType(sel) {
-    const g = sel.closest('.lab-input-group');
-    togglePayUI(g, sel.value);
-    if (sel.value === 'perbox' && !g.querySelector('.bracket-rows .kvrow')) g.querySelector('.bracket-rows').innerHTML = bracketRowHTML({ from:1 });
-    if (sel.value === 'tiers' && !g.querySelector('.tier-rows .kvrow')) g.querySelector('.tier-rows').innerHTML = tierRowHTML();
-    if (sel.value === 'perproduct') {
-        const pr = g.querySelector('.prod-rows');
-        if (!pr.querySelector('.kvrow')) pr.innerHTML = prodRowHTML();
-        const det = pr.closest('details'); if (det) det.open = true;
-    }
-    markUpdated(); updateInfographic();
 }
 
-/* ---------- Calcul de la rémunération ---------- */
+/* ---------- Calcul de la rémunération (règle unifiée) ----------
+   Condition « accompli » : 1er palier atteint si des paliers sont définis, sinon objectif atteint.
+   Gains = primes des paliers atteints (cumulatif)
+         + si accompli : Σ(boîtes vendues × montant) des produits si des quantités sont saisies, sinon 1 €/boîte. */
 function fmtEur(n) { return (Math.round(n * 100) / 100).toLocaleString('fr-FR', { minimumFractionDigits:0, maximumFractionDigits:2 }) + ' €'; }
-function computePayout(actu, brackets) {
-    const bs = (brackets || []).filter(b => b.rate > 0).map(b => ({ from:Math.max(1, b.from || 1), rate:b.rate })).sort((a, b) => a.from - b.from);
-    if (!bs.length) return 0;
-    let total = 0;
-    for (let i = 0; i < bs.length; i++) {
-        const start = bs[i].from, end = (i + 1 < bs.length) ? bs[i + 1].from - 1 : Infinity;
-        if (actu < start) break;
-        const count = Math.min(actu, end) - start + 1;
-        if (count > 0) total += count * bs[i].rate;
-    }
-    return total;
-}
-function remStats(lab) {
-    const p = lab.payout || { type:'none' };
-    if (p.type === 'perbox') {
-        const min = p.min || 0, validated = min > 0 ? lab.actu >= min : true;
-        const rem = validated ? computePayout(lab.actu, p.brackets) : 0;
-        const bs = (p.brackets || []).filter(b => b.rate > 0).sort((a, b) => a.from - b.from);
-        const boosterFrom = bs.length > 1 ? bs[bs.length - 1].from : null;
-        return { type:'perbox', rem, validated, min, level:p.level, boosterFrom, inBooster: boosterFrom && lab.actu >= boosterFrom, missing: Math.max(0, min - lab.actu) };
-    }
-    if (p.type === 'perproduct') {
-        const min = p.min || 0, validated = min > 0 ? lab.actu >= min : true;
-        const sum = (lab.products || []).reduce((a, pr) => a + ((pr.qty || 0) * (pr.amount || 0)), 0);
-        return { type:'perproduct', validated, min, missing: Math.max(0, min - lab.actu), level:p.level, sum, fallback: sum === 0 };
-    }
-    if (p.type === 'tiers') {
-        const tiers = (p.tiers || []).filter(t => t.seuil > 0).sort((a, b) => a.seuil - b.seuil);
-        let prime = 0, current = null, next = null;
-        tiers.forEach(t => { if (lab.actu >= t.seuil) { prime += (t.prime || 0); current = t; } else if (!next) next = t; });
-        return { type:'tiers', tiers, current, next, prime, remaining: next ? next.seuil - lab.actu : 0 };
-    }
-    return { type:'none', rem:0 };
-}
 function tierNote(t) {
     const parts = [t.current ? `Palier ${t.current.seuil} atteint` : 'Aucun palier atteint'];
     if (t.next) parts.push(`prochain ${t.next.seuil} (+${t.remaining})`);
-    if (t.prime > 0) parts.push(`${fmtEur(t.prime)} acquis`);
     return '🎯 ' + parts.join(' · ');
 }
 // Gains acquis (réalisé actuel) et estimés (projection de fin de période).
 function estimateGains(lab, projActu) {
-    const p = lab.payout || { type:'none' };
-    if (p.type === 'perbox') {
-        const min = p.min || 0;
-        const acquired = (min > 0 ? lab.actu >= min : true) ? computePayout(lab.actu, p.brackets) : 0;
-        const projValid = (min > 0 ? projActu >= min : true);
-        const projected = projValid ? computePayout(projActu, p.brackets) : 0;
-        const unlock = min > 0 ? computePayout(min, p.brackets) : 0;
-        return { type:'perbox', acquired, projected, projValid, unlock };
-    }
-    if (p.type === 'perproduct') {
-        const min = p.min || 0;
-        const sum = (lab.products || []).reduce((a, pr) => a + ((pr.qty || 0) * (pr.amount || 0)), 0);
-        const base = sum > 0 ? sum : lab.actu;                       // défaut : 1 €/boîte vendue
-        const validNow = min > 0 ? lab.actu >= min : true;
-        const validProj = min > 0 ? projActu >= min : true;
-        const acquired = validNow ? base : 0;
-        const projBase = sum > 0 ? (lab.actu > 0 ? sum * (projActu / lab.actu) : sum) : projActu;
-        const projected = validProj ? projBase : 0;
-        const unlock = sum > 0 ? sum : (min || lab.actu);
-        return { type:'perproduct', acquired, projected, unlock, fallback: sum === 0 };
-    }
-    if (p.type === 'tiers') {
-        const tiers = (p.tiers || []).filter(t => t.seuil > 0);
-        const sum = n => tiers.reduce((a, t) => a + (n >= t.seuil ? (t.prime || 0) : 0), 0);
-        return { type:'tiers', acquired:sum(lab.actu), projected:sum(projActu) };
-    }
-    return { type:'none', acquired:0, projected:0 };
+    const tiers = ((lab.payout || {}).tiers || []).filter(t => t.seuil > 0).sort((a, b) => a.seuil - b.seuil);
+    const threshold = tiers.length ? tiers[0].seuil : (lab.obj > 0 ? lab.obj : 0);
+    const sumProd = (lab.products || []).reduce((a, pr) => a + ((pr.qty || 0) * (pr.amount || 0)), 0);
+    const primes = n => tiers.reduce((a, t) => a + (n >= t.seuil ? (t.prime || 0) : 0), 0);
+    const achieved = n => threshold > 0 && n >= threshold;
+    const base = n => {
+        if (!achieved(n)) return 0;
+        if (sumProd > 0) return lab.actu > 0 ? sumProd * (n / lab.actu) : sumProd;   // barème produits (mis à l'échelle en projection)
+        return n * 1;                                                                // défaut : 1 €/boîte
+    };
+    const gains = n => base(n) + primes(n);
+    // Contexte paliers pour l'affichage (stepper)
+    let current = null, next = null;
+    tiers.forEach(t => { if (lab.actu >= t.seuil) current = t; else if (!next) next = t; });
+    return {
+        acquired: gains(lab.actu),
+        projected: gains(projActu),
+        achievedNow: achieved(lab.actu),
+        threshold,
+        missing: Math.max(0, threshold - lab.actu),
+        unlock: threshold > 0 ? ((sumProd > 0 ? sumProd : threshold) + primes(threshold)) : 0,
+        usedBareme: sumProd > 0,
+        tiers, current, next, remaining: next ? next.seuil - lab.actu : 0,
+        primesNow: primes(lab.actu)
+    };
 }
 function projActuOf(lab) { const s = computeStats(lab); return s.projected != null ? s.projected : lab.actu; }
 
 /* ---------- Aperçu ---------- */
 function updateInfographic() {
     _statsCache = new WeakMap();
+    prevSnapshot = previousSnapshot();
     const preview = document.getElementById('preview-container');
     preview.innerHTML = '';
     const rawLabs = collectLabs();
@@ -1499,12 +1458,20 @@ function statusVisual(s) {
     return { color:'#d97706', soft:'#fbf1e3', label:'En retard' };
 }
 
-function periodLabel(labs) {
-    // Période affichée : du début le plus ancien des challenges EN COURS
-    // à la date de fin la plus fréquente (ex. 3 fins au 31/08 et 1 au 30/09 → 31/08).
+function activePool(labs) {
+    // Challenges ACTIFS aujourd'hui (commencés et non terminés) ; replis : à venir, puis non expirés, puis tous.
     const today = new Date().toISOString().slice(0, 10);
-    let pool = labs.filter(l => l.end && l.end >= today);
-    if (!pool.length) pool = labs;                               // repli : tout est expiré
+    let pool = labs.filter(l => (!l.start || l.start <= today) && (l.end && l.end >= today));
+    if (!pool.length) pool = labs.filter(l => l.start && l.start > today);
+    if (!pool.length) pool = labs.filter(l => l.end && l.end >= today);
+    if (!pool.length) pool = labs;
+    return pool;
+}
+function activePeriodStart(labs) { const starts = activePool(labs).map(l => l.start).filter(Boolean).sort(); return starts.length ? starts[0] : null; }
+function periodLabel(labs) {
+    // Période affichée : basée uniquement sur les challenges actifs — du début le plus ancien
+    // à la date de fin la plus fréquente (ex. 3 fins au 31/08 et 1 au 30/09 → 31/08).
+    const pool = activePool(labs);
     const starts = pool.map(l => l.start).filter(Boolean).sort();
     const ends = pool.map(l => l.end).filter(Boolean);
     if (!starts.length || !ends.length) return '';
@@ -1539,38 +1506,33 @@ function buildCardPage(pageLabs, mainTitle, period, pageNo, totalPages) {
         const centre = pc == null ? '—' : (s.percent >= 100 ? '✓' : `${pc}<small>%</small>`);
         const dl = daysLeft(lab.end);
         const dayChip = dl == null ? '' : (dl < 0 ? `<span class="chip-p exp">Expiré</span>` : dl === 0 ? `<span class="chip-p soon">Dernier jour</span>` : dl <= 7 ? `<span class="chip-p soon">J-${dl}</span>` : `<span class="chip-p">J-${dl}</span>`);
-        const rs = remStats(lab);
         const projActu = s.projected != null ? s.projected : lab.actu;
         const g2 = estimateGains(lab, projActu);
         let payHTML = '';
-        if (rs.type === 'tiers' && rs.tiers.length) {
-            const proj = (g2.projected > g2.acquired) ? ` · ≈ ${fmtEur(g2.projected)} estimés` : '';
-            payHTML = `<div class="tier-block">
-                    <div class="tier-segs">${rs.tiers.map(x => `<div class="seg" style="${lab.actu >= x.seuil ? 'background:' + v.color : ''}"></div>`).join('')}</div>
-                    <div class="tier-labels">${rs.tiers.map(x => `<span>${x.seuil}</span>`).join('')}</div>
-                    <div class="tier-note">${tierNote(rs)}${proj}</div>
-                </div>`;
-        } else if (rs.type === 'perbox' || rs.type === 'perproduct') {
-            const minLine = rs.min
-                ? (rs.validated
-                    ? `<div class="pay-min ok">Minimum trimestriel ${rs.min} atteint ✓</div>`
-                    : `<div class="pay-min ko">Min. trim. ${rs.min} non atteint — manque ${rs.missing} → débloque ≈ ${fmtEur(g2.unlock)}</div>`)
-                : '';
-            const tag = rs.type === 'perproduct'
-                ? (rs.level ? ` · ${esc(rs.level)}` : '') + (g2.fallback ? ' · défaut 1 €/boîte' : ' · par produit')
-                : (rs.level ? ` · ${esc(rs.level)}` : '') + (rs.inBooster ? ' ⚡' : '');
+        const tierHTML = g2.tiers.length ? `<div class="tier-block">
+                    <div class="tier-segs">${g2.tiers.map(x => `<div class="seg" style="${lab.actu >= x.seuil ? 'background:' + v.color : ''}"></div>`).join('')}</div>
+                    <div class="tier-labels">${g2.tiers.map(x => `<span>${x.seuil}</span>`).join('')}</div>
+                    <div class="tier-note">${tierNote(g2)}</div>
+                </div>` : '';
+        if (g2.threshold > 0) {
+            const modeTag = g2.usedBareme ? ' · barème produits' : ' · 1 €/boîte';
+            const condLine = g2.achievedNow
+                ? `<div class="pay-min ok">${g2.tiers.length ? `Palier ${g2.threshold}` : `Objectif ${g2.threshold}`} atteint ✓</div>`
+                : `<div class="pay-min ko">${g2.tiers.length ? `Palier ${g2.threshold}` : `Objectif ${g2.threshold}`} non atteint — manque ${g2.missing} → débloque ≈ ${fmtEur(g2.unlock)}</div>`;
             payHTML = `<div class="pay-block">
-                    <div class="pay-amt">💶 ${g2.acquired > 0 ? fmtEur(g2.acquired) : '—'} acquis${tag}</div>
+                    <div class="pay-amt">💶 ${g2.acquired > 0 ? fmtEur(g2.acquired) : '—'} acquis${g2.acquired > 0 && !g2.primesNow ? modeTag : ''}</div>
                     <div class="pay-proj">≈ ${fmtEur(g2.projected)} estimés en fin de période</div>
-                    ${minLine}
-                </div>`;
+                    ${condLine}
+                </div>${tierHTML}`;
+        } else {
+            payHTML = tierHTML;
         }
         const prods = lab.products || [];
         const prodHTML = prods.length ? `<div class="prods">
                     <span class="eyebrow" style="display:block;margin-bottom:4px">Produits challengés</span>
                     <div class="prods-box">${prods.slice(0,2).map(p => `<div class="prods-row"><span>${esc(p.name)}${p.qty ? ` ×${p.qty}` : ''}</span><span class="amt">${p.qty ? fmtEur(p.qty * p.amount) : fmtEur(p.amount)}</span></div>`).join('')}${prods.length > 2 ? `<div class="prods-more">+${prods.length-2} autre(s)</div>` : ''}</div>
                 </div>`
-            : (rs.type === 'none' ? `<div class="pcard-target"><span class="eyebrow">Cible</span><span class="tval">${esc(lab.gamme)}</span></div>` : '');
+            : (g2.threshold <= 0 && !g2.tiers.length ? `<div class="pcard-target"><span class="eyebrow">Cible</span><span class="tval">${esc(lab.gamme)}</span></div>` : '');
         return `
             <div class="pcard" style="--st:${v.color};--st-soft:${v.soft}">
                 <div class="pcard-head">
@@ -1681,7 +1643,7 @@ function kpiValues(labs) {
     let delta = 0;
     if (prevSnapshot) labs.forEach(l => { const m = prevSnapshot.labs.find(x => x.lab === l.name); if (m) delta += (l.actu - m.actu); });
     let totalAcq = 0, totalProj = 0, hasPayout = false;
-    labs.forEach(l => { const p = l.payout; if (p && p.type && p.type !== 'none') { hasPayout = true; const g = estimateGains(l, projActuOf(l)); totalAcq += g.acquired; totalProj += g.projected; } });
+    labs.forEach(l => { const g = estimateGains(l, projActuOf(l)); if (g.threshold > 0 || g.tiers.length) { hasPayout = true; totalAcq += g.acquired; totalProj += g.projected; } });
     return { total:labs.length, achieved, withObj, avg, avgColor: avg>=75?'var(--success)':(avg>=50?'var(--warning)':'var(--danger)'), endingSoon, expired, behind, delta, totalAcq, totalProj, hasPayout };
 }
 
@@ -1734,7 +1696,13 @@ function validateBlocks() {
 /* ---------- Historique / sparkline / mises à jour ---------- */
 function loadHistory() { try { const r = localStorage.getItem(HISTORY_KEY); return r ? JSON.parse(r) : []; } catch (e) { return []; } }
 function saveHistory(h) { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch (e) {} }
-function previousSnapshot() { const today = new Date().toISOString().slice(0,10); const h = loadHistory().filter(e => e.date < today); return h.length ? h[h.length-1] : null; }
+function previousSnapshot() {
+    const today = new Date().toISOString().slice(0,10);
+    let h = loadHistory().filter(e => e.date < today);
+    // Ne comparer qu'au sein de la période active : les instantanés d'une période précédente sont ignorés.
+    try { const ps = activePeriodStart(collectLabs().map(labModel)); if (ps) h = h.filter(e => e.date >= ps); } catch (e) {}
+    return h.length ? h[h.length-1] : null;
+}
 
 function captureSnapshot(manual) {
     const today = new Date().toISOString().slice(0,10);
@@ -1816,16 +1784,15 @@ function loadState() { try { const r = localStorage.getItem(STORAGE_KEY); return
 /* ---------- Import / export ---------- */
 function exportToJSON() { download(new Blob([JSON.stringify(collectData(), null, 2)], { type:"application/json" }), `challenges_${new Date().toISOString().slice(0,10)}.json`); }
 function exportToCSV() {
-    const rows = [["Laboratoire","Gamme","Debut","Fin","Objectif","Realise","Progression_%","Projection","Base_projection","Jours_restants","Statut","Remun_type","Niveau","Min_trim","Valide","Gains_acquis_EUR","Gains_estimes_EUR","Produits_bareme"]];
-    collectLabs().forEach(l => { const lab = labModel(l), s = computeStats(lab), rs = remStats(lab);
+    const rows = [["Laboratoire","Gamme","Debut","Fin","Objectif","Realise","Progression_%","Projection","Base_projection","Jours_restants","Statut","Seuil_gains","Atteint","Mode_gains","Gains_acquis_EUR","Gains_estimes_EUR","Paliers","Produits_bareme"]];
+    collectLabs().forEach(l => { const lab = labModel(l), s = computeStats(lab);
         const g = estimateGains(lab, s.projected != null ? s.projected : lab.actu);
-        const prods = (lab.products || []).map(p => `${p.name}: ${p.amount}€`).join(' | ');
-        const niveau = rs.type === 'perbox' ? (rs.level || '') : (rs.type === 'perproduct' ? (rs.level || 'par produit') : (rs.type === 'tiers' ? 'paliers' : ''));
-        const minT = (rs.type === 'perbox' || rs.type === 'perproduct') ? rs.min : '';
-        const valide = (rs.type === 'perbox' || rs.type === 'perproduct') ? (rs.validated ? 'oui' : 'non') : '';
-        const acq = rs.type !== 'none' ? g.acquired : '';
-        const est = rs.type !== 'none' ? g.projected : '';
-        rows.push([l.lab, l.gamme, l.start, l.end, lab.obj, lab.actu, s.hasObj?Math.round(s.percent):'', s.projected ?? '', s.basis, s.dleft ?? '', s.status, rs.type, niveau, minT, valide, acq, est, prods]); });
+        const prods = (lab.products || []).map(p => `${p.name}: ${p.amount}€${p.qty ? ' x' + p.qty : ''}`).join(' | ');
+        const paliers = g.tiers.map(t => `${t.seuil}${t.prime ? ' (+' + t.prime + '€)' : ''}`).join(' | ');
+        const mode = g.usedBareme ? 'bareme produits' : '1 EUR/boite';
+        rows.push([l.lab, l.gamme, l.start, l.end, lab.obj, lab.actu, s.hasObj?Math.round(s.percent):'', s.projected ?? '', s.basis, s.dleft ?? '', s.status,
+                   g.threshold || '', g.threshold ? (g.achievedNow ? 'oui' : 'non') : '', mode,
+                   Math.round(g.acquired*100)/100, Math.round(g.projected*100)/100, paliers, prods]); });
     const csv = rows.map(r => r.map(c => {
         let s = String(c);
         if (/^[=+@\t\r]/.test(s) || (/^-/.test(s) && isNaN(Number(s)))) s = "'" + s;   // anti-injection de formule
@@ -1862,7 +1829,9 @@ function generatePDF() {
     const element = document.getElementById('preview-container');
     if (typeof html2pdf === 'undefined') { showToast("Mode hors-ligne : utilisez la fenêtre d'impression (Enregistrer en PDF).", "OK"); window.print(); return; }
     const opt = { margin:0, filename:`Rapport_Challenges_${new Date().toISOString().slice(0,10)}.pdf`, image:{ type:'jpeg', quality:0.98 },
-        html2canvas:{ scale:2, useCORS:true, scrollY:0, windowWidth:840 }, jsPDF:{ unit:'mm', format:'a4', orientation:'portrait' }, pagebreak:{ mode:['css','legacy'] } };
+        html2canvas:{ scale:2, useCORS:true, x:0, y:0, scrollX:0, scrollY:0, windowWidth:794, width:794,
+            onclone:(doc) => { doc.body.classList.add('pdf-capture'); const pc = doc.getElementById('preview-container'); if (pc) pc.style.zoom = ''; } },
+        jsPDF:{ unit:'mm', format:'a4', orientation:'portrait' }, pagebreak:{ mode:['css','legacy'] } };
     const prevZoom = element.style.zoom; element.style.zoom = '';   // taille réelle pour la capture (mobile)
     document.body.classList.add('pdf-capture');                     // alignement gauche, marges/ombres neutralisées
     window.scrollTo(0,0);

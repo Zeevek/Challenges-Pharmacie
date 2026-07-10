@@ -1,5 +1,11 @@
 # Journal des versions
 
+## v3.1 — juillet 2026
+- Rémunération simplifiée : règle unique automatique — 1 €/boîte si l'objectif (ou le 1er palier défini) est atteint, sinon 0 ; primes de paliers cumulées ; barème produits (boîtes × montant) prioritaire quand les quantités sont renseignées.
+- Répartition : arrondi automatique à l'euro inférieur, report calculé automatiquement avec indication du laboratoire où reste le solde, mémorisation du report et case « Utiliser le report » à la dispatch suivante, plan de versement conseillé affiché (virements regroupés par laboratoire).
+- Période et progression calculées uniquement sur les challenges actifs (les instantanés d'une période précédente sont ignorés).
+- Export PDF : capture consolidée (correctif du cadre décalé).
+
 ## v3.0 — juillet 2026
 - Correction de l'impression navigateur (Chrome, Firefox, Brave…) : pages du rapport alignées et à taille réelle grâce à une mise en page d'impression dédiée (format A4 sans marges, centrage et zoom mobile neutralisés, sauts de page propres). L'impression de la Répartition garde ses marges de feuille.
 - Révision du code : règles d'impression consolidées (doublons supprimés), styles inutilisés retirés.
