@@ -144,8 +144,6 @@
         .rep-totals { display:flex; gap:24px; flex-wrap:wrap; padding:16px; background:#f8fafc; border:1px solid var(--border); border-radius:10px; font-size:15px; margin-top:14px; }
         .rep-totals b { font-size:20px; display:block; }
         .rep-totals .lbl { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; }
-        .rep-coef-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; max-width:720px; }
-        .rep-coef-grid label { font-weight:600; font-size:13px; }
         .poste-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; max-width:440px; }
         .poste-row input[type=text] { flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; }
         .poste-row input[type=number] { width:90px; padding:8px; border:1px solid #cbd5e1; border-radius:6px; }
@@ -155,14 +153,25 @@
         .rep-inactive .share { color:var(--text-muted) !important; }
 
         @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+        @page { size: A4 portrait; margin: 0; }
         @media print {
-            body { padding:0; background:#fff; }
+            html, body { width:210mm; margin:0; }
+            body { display:block !important; padding:0 !important; background:#fff !important; }
             #toast, .update-banner, .topnav { display:none !important; }
+            /* Rapport (défaut) : uniquement les pages A4, alignées au bord, taille réelle */
             body:not(.printing-rep) .form-container { display:none !important; }
-            body:not(.printing-rep) .a4-page { box-shadow:none; margin:0; }
+            body:not(.printing-rep) #view-repartition { display:none !important; }
+            body:not(.printing-rep) #view-challenges { display:block !important; width:auto; min-width:0; }
+            body:not(.printing-rep) #preview-container { zoom:1 !important; width:210mm !important; max-width:none !important; margin:0 !important; }
+            .a4-page { margin:0 !important; box-shadow:none !important; border-radius:0 !important; break-after:page; page-break-after:always; }
+            .a4-page:last-child { break-after:auto; page-break-after:auto; }
+            .html2pdf__page-break { display:none !important; }
+            /* Répartition (bouton Imprimer de la page) : contenu avec marges de feuille */
             body.printing-rep #view-challenges { display:none !important; }
+            body.printing-rep #view-repartition { display:block !important; width:auto; min-width:0; }
+            body.printing-rep .form-container { box-shadow:none !important; margin:10mm !important; padding:0 !important; width:auto !important; max-width:none !important; }
             body.printing-rep .rep-actions, body.printing-rep #rep-tab-param, body.printing-rep .addrow, body.printing-rep .lib-del, body.printing-rep th:last-child, body.printing-rep td:last-child { display:none !important; }
-            body.printing-rep .form-container { box-shadow:none; }
+            body.printing-rep .rep-table { min-width:0 !important; }
         }
 
         .block-msg { font-size:11px; margin-top:8px; min-height:14px; }
@@ -303,7 +312,6 @@
             .rep-table { min-width:720px; }
             .rep-totals { gap:14px; padding:12px; font-size:14px; }
             .rep-totals b { font-size:17px; }
-            .rep-coef-grid { grid-template-columns:repeat(2,1fr); }
             .modal { padding:14px; }
         }
         /* ===== Mode capture PDF : géométrie exacte pour html2canvas ===== */
@@ -313,7 +321,6 @@
         body.pdf-capture #view-challenges { display:block !important; width:auto; }
         body.pdf-capture #preview-container { max-width:none !important; width:210mm; margin:0 !important; }
         body.pdf-capture .a4-page { margin:0 !important; box-shadow:none !important; border-radius:0 !important; }
-        @media print { body { padding:0; background:#fff; } }
     </style>
 </head>
 <body>
@@ -911,9 +918,12 @@ function renameLib(id, name) { const lib = loadLibrary(); const it = lib.find(x 
 function deleteLib(id) { saveLibrary(loadLibrary().filter(x => x.id !== id)); refreshLibrarySelects(); renderStorage(); openLibrary(); }
 
 /* ---------- Aide & journal des nouveautés ---------- */
-const APP_VERSION = '2.9';
+const APP_VERSION = '3.0';
 const SEEN_KEY = 'pharma_seen_version';
 const CHANGELOG = [
+    { v:'3.0', d:'juillet 2026', items:[
+        'Correction de l\'impression navigateur (Chrome, Firefox, Brave…) : pages du rapport alignées et à taille réelle grâce à une mise en page d\'impression dédiée (format A4 sans marges, centrage et zoom mobile neutralisés, sauts de page propres). L\'impression de la Répartition garde ses marges de feuille.',
+        'Révision du code : règles d\'impression consolidées (doublons supprimés), styles inutilisés retirés.' ] },
     { v:'2.9', d:'juillet 2026', items:[
         'Répartition : versements en euros entiers (un seul virement rond par personne), champ « montant à déduire / report » et reliquat « à reporter » à la prochaine dispatch, bouton « Copier le plan de versement ».',
         'Postes personnalisables : ajout, renommage et suppression de postes (au-delà de pharmacien / préparateur / rayonniste / étudiant).',

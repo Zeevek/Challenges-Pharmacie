@@ -1,5 +1,9 @@
 # Journal des versions
 
+## v3.0 — juillet 2026
+- Correction de l'impression navigateur (Chrome, Firefox, Brave…) : pages du rapport alignées et à taille réelle grâce à une mise en page d'impression dédiée (format A4 sans marges, centrage et zoom mobile neutralisés, sauts de page propres). L'impression de la Répartition garde ses marges de feuille.
+- Révision du code : règles d'impression consolidées (doublons supprimés), styles inutilisés retirés.
+
 ## v2.9 — juillet 2026
 - Répartition : versements en euros entiers (un seul virement rond par personne), champ « montant à déduire / report » et reliquat « à reporter », bouton « Copier le plan de versement ».
 - Postes personnalisables : ajout, renommage et suppression de postes.
