@@ -153,9 +153,13 @@
         .plan-src { border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; background:#fff; }
         .plan-src-head { font-weight:700; font-size:13px; display:flex; justify-content:space-between; gap:10px; }
         .plan-src-amt { color:var(--text-muted); font-weight:600; }
-        .plan-src ul { margin:6px 0 0; padding-left:20px; font-size:13px; }
+        .plan-src ul { margin:6px 0 0; padding-left:4px; font-size:13px; list-style:none; }
         .plan-src li { margin-bottom:2px; }
-        .plan-split { color:#b45309; font-size:11px; }
+        .plan-line label { display:flex; align-items:center; cursor:pointer; }
+        .plan-line label b { margin-left:4px; }
+        .plan-done { opacity:.55; }
+        .plan-done label { text-decoration:line-through; }
+        .plan-split { color:#b45309; font-size:11px; margin-left:4px; }
         .plan-rest { font-size:12px; color:#7c3aed; margin-top:6px; font-weight:600; }
 
         @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
@@ -884,9 +888,11 @@ function renameLib(id, name) { const lib = loadLibrary(); const it = lib.find(x 
 function deleteLib(id) { saveLibrary(loadLibrary().filter(x => x.id !== id)); refreshLibrarySelects(); renderStorage(); openLibrary(); }
 
 /* ---------- Aide & journal des nouveautés ---------- */
-const APP_VERSION = '3.2';
+const APP_VERSION = '3.3';
 const SEEN_KEY = 'pharma_seen_version';
 const CHANGELOG = [
+    { v:'3.3', d:'juillet 2026', items:[
+        'Plan de versement : une case à cocher par virement pour pointer les versements effectués (barré une fois fait). Synchronisation avec la colonne « Payé » dans les deux sens, « déjà versé » calculé sur les virements cochés, état conservé et repris dans le plan copié ([✓]/[ ]).' ] },
     { v:'3.2', d:'juillet 2026', items:[
         'Gains comptés à l\'instant de la consultation uniquement : plus d\'estimation au rythme de vente. Tant que l\'objectif (ou le 1er palier) n\'est pas atteint, le gain affiché est 0 ; les totaux (couverture, indicateurs, CSV) ne montrent plus que les gains acquis. L\'indicateur de rythme des ventes (« ~X projeté ») est conservé.' ] },
     { v:'3.1', d:'juillet 2026', items:[
@@ -957,7 +963,7 @@ function openHelp() {
         S('6. Logos', 'Importez une image, glissez-la sur la vignette ou collez-la (Ctrl+V). Elle est stockée localement (fonctionne hors-ligne) et réutilisable via la <span class="k">Bibliothèque</span>.') +
         S('7. Rapport PDF', 'Le bouton <span class="k">Télécharger le PDF</span> génère le rapport (couverture + fiches). Hors-ligne, il bascule automatiquement sur l\'impression du navigateur (Enregistrer en PDF).') +
         S('8. Sauvegarde & transfert', 'Utilisez <span class="k">Sauvegarder (.json)</span> puis <span class="k">Charger</span> pour transférer vos données (logos, historique et répartition inclus) vers un autre poste. L\'<span class="k">export CSV</span> ouvre les chiffres dans Excel.') +
-        S('9. Répartition des gains', 'L\'onglet <span class="k">💰 Répartition</span> (en haut) permet de distribuer les gains à l\'équipe : cochez les challenges concernés, ajoutez les personnes (nom, email, poste), et l\'outil calcule la part de chacun selon la <span class="k">pondération par poste</span> réglée dans « Paramètres » (et, en option, le taux horaire). Les parts sont <span class="k">arrondies à l\'euro inférieur</span> ; le reliquat se calcule automatiquement, s\'affiche « à reporter » avec le laboratoire où reste le solde, et peut être mémorisé puis réutilisé à la dispatch suivante (case « Utiliser le report »). Le <span class="k">plan de versement conseillé</span> regroupe les virements par laboratoire pour limiter les plateformes. Réglez les <span class="k">postes et coefficients</span> (ajout/suppression possible) dans « Paramètres ». Cochez « Payé » pour suivre le déjà versé et le reste. Boutons « Copier le plan de versement », Imprimer et CSV.') +
+        S('9. Répartition des gains', 'L\'onglet <span class="k">💰 Répartition</span> (en haut) permet de distribuer les gains à l\'équipe : cochez les challenges concernés, ajoutez les personnes (nom, email, poste), et l\'outil calcule la part de chacun selon la <span class="k">pondération par poste</span> réglée dans « Paramètres » (et, en option, le taux horaire). Les parts sont <span class="k">arrondies à l\'euro inférieur</span> ; le reliquat se calcule automatiquement, s\'affiche « à reporter » avec le laboratoire où reste le solde, et peut être mémorisé puis réutilisé à la dispatch suivante (case « Utiliser le report »). Le <span class="k">plan de versement conseillé</span> regroupe les virements par laboratoire pour limiter les plateformes ; cochez chaque virement une fois effectué (le « déjà versé » suit, et la colonne « Payé » se synchronise). Réglez les <span class="k">postes et coefficients</span> (ajout/suppression possible) dans « Paramètres ». Cochez « Payé » pour suivre le déjà versé et le reste. Boutons « Copier le plan de versement », Imprimer et CSV.') +
         `<button class="main-btn btn-add" style="margin-top:14px;" onclick="closeModal('help-modal')">Fermer</button>`;
     document.getElementById('help-modal').classList.add('open');
 }
@@ -1002,6 +1008,7 @@ function repLoad() {
     if (!Array.isArray(s.customChallenges)) s.customChallenges = [];
     if (!s.challenges) s.challenges = {};
     if (!Array.isArray(s.people)) s.people = [];
+    if (!s.paidTransfers || typeof s.paidTransfers !== 'object') s.paidTransfers = {};
     s.people.forEach(p => { if (p.heures == null && p.taux != null) p.heures = p.taux; });
     return s;
 }
@@ -1056,6 +1063,11 @@ function repRefresh() {
             document.getElementById('rep-carry-label').innerHTML = `Utiliser le report précédent : <b>+${fmtEur(repState.carry.amount)}</b>${repState.carry.lab ? ' (chez ' + esc(repState.carry.lab) + ')' : ''}`;
         }
     }
+    // Cases de virements : reprendre l'état « Payé » existant puis purger les clés obsolètes.
+    const c0 = repCompute();
+    repState.people.forEach(p => { if (p.paid) personLines(c0, p.id).forEach(l => { if (!(l.key in repState.paidTransfers)) repState.paidTransfers[l.key] = true; }); });
+    const validKeys = new Set(); c0.sources.forEach(src => src.lines.forEach(l => validKeys.add(l.key)));
+    Object.keys(repState.paidTransfers).forEach(k => { if (!validKeys.has(k)) delete repState.paidTransfers[k]; });
     repRenderPeople();
     repRecalc();
     repSave();
@@ -1093,7 +1105,7 @@ function addCustomChal() { repState.customChallenges.push({ id:'C' + Date.now() 
 function repCustomToggle(el) { const c = repState.customChallenges.find(x => x.id === el.dataset.id); if (c) { c.included = el.checked; repRecalc(); repSave(); } }
 function repCustomField(el, field) { const c = repState.customChallenges.find(x => x.id === el.dataset.id); if (!c) return; c[field] = field === 'amount' ? (parseFloat(el.value) || 0) : el.value; repRecalc(); repSave(); }
 function removeCustomChal(id) { repState.customChallenges = repState.customChallenges.filter(x => x.id !== id); repSave(); repRefresh(); }
-function repPerson(id, field, val) { const p = repState.people.find(x => x.id === id); if (!p) return; p[field] = val; if (field === 'active') repRenderPeople(); repRecalc(); repSave(); }
+function repPerson(id, field, val) { const p = repState.people.find(x => x.id === id); if (!p) return; p[field] = val; if (field === 'paid') syncTransfersFromPaid(p); if (field === 'active') repRenderPeople(); repRecalc(); repSave(); }
 function repPosteField(id, field, val) { const p = (repState.settings.postes || []).find(x => x.id === id); if (!p) return; p[field] = field === 'coef' ? (parseFloat(val) || 0) : val; if (field === 'label') repRenderPeople(); repRecalc(); repSave(); }
 function addPoste() { const id = 'poste' + Date.now() + Math.floor(Math.random()*1000); repState.settings.postes.push({ id, label:'Nouveau poste', coef:1 }); repSave(); repRenderPostes(); repRenderPeople(); repRecalc(); }
 function removePoste(id) {
@@ -1149,15 +1161,15 @@ function repCompute() {
         let need = pay.amt;
         let cand = -1;
         rem.forEach((s, i) => { if (s.left >= need - 1e-9 && (cand < 0 || s.left < rem[cand].left)) cand = i; });
-        if (cand >= 0) { rem[cand].lines.push({ name:pay.name, amount:need }); rem[cand].left = round2(rem[cand].left - need); }
+        if (cand >= 0) { rem[cand].lines.push({ pid:pay.id, name:pay.name, amount:need, key:pay.id + '||' + rem[cand].label + '||' + need }); rem[cand].left = round2(rem[cand].left - need); }
         else {
             const order = [...rem.keys()].sort((a, b) => rem[b].left - rem[a].left);
             for (const i of order) {
                 if (need <= 0) break;
                 const take = Math.min(Math.floor(rem[i].left + 1e-9), need);
-                if (take > 0) { rem[i].lines.push({ name:pay.name, amount:take, split:true }); rem[i].left = round2(rem[i].left - take); need -= take; }
+                if (take > 0) { rem[i].lines.push({ pid:pay.id, name:pay.name, amount:take, split:true, key:pay.id + '||' + rem[i].label + '||' + take }); rem[i].left = round2(rem[i].left - take); need -= take; }
             }
-            if (need > 0) { let mi = 0; rem.forEach((s, i) => { if (s.left > rem[mi].left) mi = i; }); rem[mi].lines.push({ name:pay.name, amount:need, split:true }); rem[mi].left = round2(rem[mi].left - need); }
+            if (need > 0) { let mi = 0; rem.forEach((s, i) => { if (s.left > rem[mi].left) mi = i; }); rem[mi].lines.push({ pid:pay.id, name:pay.name, amount:need, split:true, key:pay.id + '||' + rem[mi].label + '||' + need }); rem[mi].left = round2(rem[mi].left - need); }
         }
     });
     const leftovers = rem.filter(s => s.left > 0.004).sort((a, b) => b.left - a.left);
@@ -1167,7 +1179,7 @@ function repCompute() {
 function repRecalc() {
     const c = repCompute();
     repState.people.forEach(p => { const s = document.getElementById('share-' + p.id); if (s) s.textContent = (p.active !== false) ? fmtEur(c.aVerser[p.id] || 0) : '—'; });
-    let verse = 0; repState.people.forEach(p => { if (p.active !== false && p.paid) verse += (c.aVerser[p.id] || 0); });
+    let verse = 0; c.sources.forEach(src => src.lines.forEach(l => { if (repState.paidTransfers[l.key]) verse += l.amount; }));
     const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
     const pv = document.getElementById('rep-pool-val'); if (pv) pv.textContent = fmtEur(c.pool);
     set('rep-total-pool', fmtEur(c.pool));
@@ -1179,12 +1191,26 @@ function repRecalc() {
     if (rl) rl.textContent = c.aReporter > 0.004 && c.reportLabName ? `chez ${c.reportLabName}` : '';
     renderPlan(c);
 }
+function personLines(c, pid) { const out = []; c.sources.forEach(src => src.lines.forEach(l => { if (l.pid === pid) out.push(l); })); return out; }
+function togglePaidTransfer(keyEnc, b) {
+    const key = decodeURIComponent(keyEnc);
+    if (b) repState.paidTransfers[key] = true; else delete repState.paidTransfers[key];
+    // Synchroniser la colonne « Payé » : cochée si TOUS les virements de la personne le sont.
+    const pid = key.split('||')[0];
+    const p = repState.people.find(x => x.id === pid);
+    if (p) { const ls = personLines(repCompute(), pid); p.paid = ls.length > 0 && ls.every(l => repState.paidTransfers[l.key]); }
+    repSave(); repRenderPeople(); repRecalc();
+}
+function syncTransfersFromPaid(p) {
+    const ls = personLines(repCompute(), p.id);
+    ls.forEach(l => { if (p.paid) repState.paidTransfers[l.key] = true; else delete repState.paidTransfers[l.key]; });
+}
 function renderPlan(c) {
     const box = document.getElementById('rep-plan'); if (!box) return;
     const hasPay = c.sources.some(s => s.lines.length);
     if (!hasPay) { box.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin:0">Ajoutez des challenges cochés et des personnes participantes pour obtenir un plan de versement.</p>'; return; }
     const parts = c.sources.filter(s => s.lines.length || s.left > 0.004).map(s => {
-        const lines = s.lines.map(l => `<li>${esc(l.name)} — <b>${fmtEur(l.amount)}</b>${l.split ? ' <span class="plan-split">(complément)</span>' : ''}</li>`).join('');
+        const lines = s.lines.map(l => { const done = !!repState.paidTransfers[l.key]; return `<li class="plan-line${done ? ' plan-done' : ''}"><label><input type="checkbox" ${done ? 'checked' : ''} onchange="togglePaidTransfer('${encodeURIComponent(l.key)}', this.checked)" style="width:auto;margin:0 6px 0 0">${esc(l.name)} — <b>${fmtEur(l.amount)}</b>${l.split ? ' <span class="plan-split">(complément)</span>' : ''}</label></li>`; }).join('');
         const rest = s.left > 0.004 ? `<div class="plan-rest">Reste ${fmtEur(s.left)} → à reporter chez <b>${esc(s.label)}</b></div>` : '';
         return `<div class="plan-src"><div class="plan-src-head">🏦 ${esc(s.label)} <span class="plan-src-amt">${fmtEur(s.amount)}</span></div>${lines ? `<ul>${lines}</ul>` : ''}${rest}</div>`;
     }).join('');
@@ -1206,7 +1232,7 @@ function copyPlan() {
     c.sources.forEach(s => {
         if (!s.lines.length && s.left <= 0.004) return;
         txt += `\n\n${s.label} (${fmtEur(s.amount)})`;
-        s.lines.forEach(l => { txt += `\n  - ${l.name} : ${fmtEur(l.amount)}${l.split ? ' (complément)' : ''}`; });
+        s.lines.forEach(l => { txt += `\n  ${repState.paidTransfers[l.key] ? '[✓]' : '[ ]'} ${l.name} : ${fmtEur(l.amount)}${l.split ? ' (complément)' : ''}`; });
         if (s.left > 0.004) txt += `\n  Reste ${fmtEur(s.left)} à reporter`;
     });
     if (c.aReporter > 0.004) txt += `\n\nÀ reporter au total : ${fmtEur(c.aReporter)}${c.reportLabName ? ' (chez ' + c.reportLabName + ')' : ''}`;

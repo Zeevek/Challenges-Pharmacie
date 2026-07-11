@@ -1,5 +1,8 @@
 # Journal des versions
 
+## v3.3 — juillet 2026
+- Plan de versement : une case à cocher par virement pour pointer les versements effectués (barré une fois fait). Synchronisation avec la colonne « Payé » dans les deux sens, « déjà versé » calculé sur les virements cochés, état conservé et repris dans le plan copié ([✓]/[ ]).
+
 ## v3.2 — juillet 2026
 - Gains comptés à l'instant de la consultation uniquement : plus d'estimation au rythme de vente. Tant que l'objectif (ou le 1er palier) n'est pas atteint, le gain affiché est 0 ; les totaux (couverture, indicateurs, CSV) ne montrent plus que les gains acquis. L'indicateur de rythme des ventes (« ~X projeté ») est conservé.
 
